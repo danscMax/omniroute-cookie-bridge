@@ -1,0 +1,17 @@
+{
+  "name": "omniroute-bridge",
+  "version": "4.21.0",
+  "private": true,
+  "description": "Dev tooling for the OmniRoute Bridge extension (the extension itself needs no build — load the folder unpacked). NOTE: no \"type\":\"module\" — the extension's .js files are browser scripts (CommonJS-style globals); the .mjs tools are ESM by extension.",
+  "scripts": {
+    "gen": "node gen-providers.mjs",
+    "build": "node build.mjs",
+    "test:catalog": "node test-catalog.mjs",
+    "test:render": "node test-render.mjs",
+    "test": "node test-catalog.mjs && node test-render.mjs",
+    "check": "node --check background.js && node --check popup.js && node --check providers.js && node --check content-aistudio.js"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.0"
+  }
+}

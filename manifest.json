@@ -1,0 +1,109 @@
+{
+  "manifest_version": 3,
+  "name": "OmniRoute Bridge",
+  "version": "4.22.5",
+  "description": "Заводит всех провайдеров OmniRoute (:20128) в одно окно: захват веб-сессий (вкл. HttpOnly-куки), вставка API-ключей (170+), все OAuth-флоу (device-код / вход в браузере / вставка токена). Честная живая проверка каждого соединения + фоновый health-мониторинг. Каталог генерируется из исходника OmniRoute.",
+  "author": "Castellyn",
+  "permissions": [
+    "webRequest",
+    "storage",
+    "scripting",
+    "tabs",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:20128/*",
+    "http://127.0.0.1:20128/*",
+    "https://aistudio.google.com/*",
+    "https://*.adapta.one/*",
+    "https://*.blackbox.ai/*",
+    "https://*.chatgpt.com/*",
+    "https://*.claude.ai/*",
+    "https://*.deepseek.com/*",
+    "https://*.dola.com/*",
+    "https://*.grok.com/*",
+    "https://*.huggingface.co/*",
+    "https://*.innerai.com/*",
+    "https://*.kimi.com/*",
+    "https://*.lmarena.ai/*",
+    "https://*.meta.ai/*",
+    "https://*.perplexity.ai/*",
+    "https://*.poe.com/*",
+    "https://*.qwen.ai/*",
+    "https://*.v0.dev/*",
+    "https://*.venice.ai/*",
+    "https://*.z.ai/*",
+    "https://*.zenmux.ai/*",
+    "https://adapta.one/*",
+    "https://agent.adapta.one/*",
+    "https://app.blackbox.ai/*",
+    "https://app.innerai.com/*",
+    "https://blackbox.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://chat.qwen.ai/*",
+    "https://chat.z.ai/*",
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://copilot.microsoft.com/*",
+    "https://deepseek.com/*",
+    "https://dola.com/*",
+    "https://gemini.google.com/*",
+    "https://grok.com/*",
+    "https://huggingface.co/*",
+    "https://innerai.com/*",
+    "https://kimi.com/*",
+    "https://lmarena.ai/*",
+    "https://m365.cloud.microsoft/*",
+    "https://meta.ai/*",
+    "https://perplexity.ai/*",
+    "https://poe.com/*",
+    "https://qwen.ai/*",
+    "https://v0.dev/*",
+    "https://venice.ai/*",
+    "https://www.dola.com/*",
+    "https://www.kimi.com/*",
+    "https://www.meta.ai/*",
+    "https://www.perplexity.ai/*",
+    "https://yuanbao.tencent.com/*",
+    "https://z.ai/*",
+    "https://zenmux.ai/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://aistudio.google.com/*"
+      ],
+      "js": [
+        "content-aistudio.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "OmniRoute Bridge",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+O"
+      },
+      "description": "Открыть OmniRoute Bridge"
+    }
+  }
+}
