@@ -3,7 +3,16 @@
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 const require = createRequire(import.meta.url);
-const gen = require("./providers.gen.js"); // module.exports = OMNI_GEN
+// Load the REAL shipped adapter, not a copy of it. providers.gen.js sets `self.OMNI_GEN`; providers.js
+// reads that global and Object.assigns its exports onto `self`. Emulating `self` here lets the test
+// exercise the SAME omniAccountId the extension runs — a re-implementation would keep passing while
+// the shipped one broke (it did drift: the old inline copy used Buffer.from, the real one uses atob).
+globalThis.self = globalThis;
+const gen = require("./providers.gen.js"); // module.exports = OMNI_GEN (+ self.OMNI_GEN via the shim)
+require("./providers.js"); // → globalThis.omniAccountId / omniBuildCredential / OMNI_WEB_MAP / …
+const { omniAccountId, omniBuildCredential, OMNI_WEB_MAP } = globalThis;
+assert.equal(typeof omniAccountId, "function", "providers.js exported omniAccountId onto self");
+assert.equal(typeof omniBuildCredential, "function", "providers.js exported omniBuildCredential onto self");
 
 // counts drift with the INSTALLED OmniRoute version (catalog is generated from its source), so assert
 // sane lower bounds rather than exact numbers — an exact count would break on every upstream change.
@@ -56,21 +65,9 @@ for (const o of gen.oauth) assert.ok(["device", "redirect", "import"].includes(k
 // apikey "where to get a key" links, where present, are real URLs (a broken link = a dead button)
 for (const a of gen.apikey) if (a.get) assert.doesNotThrow(() => new URL(a.get), `apikey ${a.slug} get URL parses (${a.get})`);
 
-// omniAccountId contract (inlined from providers.js): stable JWT id, else stable djb2 hash
-function omniAccountId(cred) {
-  const s = String(cred || "");
-  const m = s.match(/eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)/);
-  if (m) {
-    try {
-      const payload = JSON.parse(Buffer.from(m[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString());
-      const id = payload.id || payload.sub || payload.user_id || payload.userId || payload.uid;
-      if (id) return String(id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 10);
-    } catch { /* not a JWT */ }
-  }
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h.toString(16).slice(0, 8);
-}
+// omniAccountId contract — asserted against the REAL providers.js export (see the shim at the top):
+// stable JWT id, else stable djb2 hash. This id keys the connection name OmniRoute UPSERTs by, so a
+// silent drift here would re-create every connection instead of updating it.
 const jwt = "eyJhbGciOiJIUzI1NiJ9." + Buffer.from(JSON.stringify({ sub: "user-42!!" })).toString("base64").replace(/\+/g, "-").replace(/\//g, "_") + ".sig";
 assert.equal(omniAccountId(jwt), "user42", "accountId from JWT sub, sanitized");
 assert.equal(omniAccountId("abc"), omniAccountId("abc"), "accountId stable");

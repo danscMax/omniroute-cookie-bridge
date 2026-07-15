@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import { area } from "./test-harness.mjs"; // shared in-memory chrome.storage — one impl for both suites
 
 const EXT = dirname(fileURLToPath(import.meta.url));
 const { document } = parseHTML(readFileSync(join(EXT, "popup.html"), "utf8"));
@@ -20,12 +21,6 @@ const CANNED = {
   getSettings: { settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto" } },
 };
 const errors = [];
-const area = () => { const m = {}; return {
-  get: (k) => Promise.resolve(k == null ? { ...m } : typeof k === "string" ? { [k]: m[k] } : Array.isArray(k) ? Object.fromEntries(k.map((x) => [x, m[x]])) : { ...m }),
-  set: (o, cb) => { Object.assign(m, o); cb && cb(); return Promise.resolve(); },
-  remove: (k, cb) => { (Array.isArray(k) ? k : [k]).forEach((x) => delete m[x]); cb && cb(); return Promise.resolve(); },
-  onChanged: { addListener: () => {} },
-}; };
 const chrome = {
   storage: { local: area(), session: area() },
   runtime: { sendMessage: (msg, cb) => { const r = CANNED[msg.action] || { ok: true }; if (cb) cb(r); return Promise.resolve(r); }, onMessage: { addListener: () => {} }, getURL: (x) => x, getManifest: () => ({ version: "dev" }) },
