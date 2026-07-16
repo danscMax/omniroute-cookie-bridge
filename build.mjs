@@ -36,6 +36,9 @@ delete chrome.browser_specific_settings;
 emit('chrome', chrome);
 
 // Firefox: background.scripts (providers first so background.js sees its globals without importScripts) + gecko id.
+// The loopback host is declared PORTLESS (http://127.0.0.1/*) in the shared manifest — a match pattern WITH a
+// port matches nothing in Firefox (bugs 1362809/1468162), which broke executeScript's host-permission check for
+// the dashboard tab. Portless matches any port, so it stays in host_permissions here (spread as-is).
 const firefox = {
   ...root,
   background: { scripts: ['providers.gen.js', 'providers.js', 'background.js'] },

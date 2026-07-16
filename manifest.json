@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_ext_name__",
-  "version": "4.24.4",
+  "version": "4.24.8",
   "description": "__MSG_ext_description__",
   "default_locale": "ru",
   "author": "Castellyn",
@@ -14,10 +14,10 @@
     "notifications"
   ],
   "optional_host_permissions": [
-    "http://127.0.0.1:20128/*"
+    "http://127.0.0.1/*"
   ],
   "host_permissions": [
-    "http://127.0.0.1:20128/*",
+    "http://127.0.0.1/*",
     "https://aistudio.google.com/*",
     "https://*.adapta.one/*",
     "https://*.blackbox.ai/*",

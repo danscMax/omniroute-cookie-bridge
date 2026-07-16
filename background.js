@@ -156,11 +156,18 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
 const INJECT_TIMEOUT = 12000;
 let dashCreating = null; // single-flight tab creation — two concurrent callers must not spawn two tabs
 
+const DASH_URL_PREFIX = "http://127.0.0.1:20128/";
 async function getDashboardTab() {
   // 127.0.0.1 only — we navigate/create on 127.0.0.1 (a "localhost" tab is unreachable in Firefox and
   // would be a dead tab runInDash could pick and fail on). Keep this in sync with OMNI_BASE / tabs.create.
-  const tabs = await chrome.tabs.query({ url: ["http://127.0.0.1:20128/*"] });
-  if (tabs.length) return tabs[0];
+  // NOTE: do NOT use chrome.tabs.query({ url: ["http://127.0.0.1:20128/*"] }) — a match pattern with a
+  // PORT matches nothing in Firefox (bugs 1362809 / 1468162), so the existing dashboard tab is never
+  // found and every call spawns a fresh tab (and injects into it → "Missing host permission" before the
+  // loopback host perm is granted). Chrome tolerates the port, which is why only Firefox broke. Query all
+  // tabs and prefix-filter the URL in JS instead ("tabs" permission populates tab.url for every tab).
+  const all = await chrome.tabs.query({});
+  const existing = all.find((tb) => tb.url && tb.url.startsWith(DASH_URL_PREFIX));
+  if (existing) return existing;
   if (!dashCreating) {
     dashCreating = (async () => {
       const tab = await chrome.tabs.create({ url: "http://127.0.0.1:20128/home", active: false });

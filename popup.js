@@ -33,7 +33,9 @@ const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || 
 // dashboard tab then fails with "Missing host permission for the tab". Chrome auto-grants, so contains()
 // is true there and the banner never shows. permissions.request() must run from a user gesture (the
 // button), per the MDN permissions API.
-const HOST_ORIGINS = ["http://127.0.0.1:20128/*"];
+// Portless — a match pattern WITH a port matches nothing in Firefox (bugs 1362809/1468162), so a granted
+// http://127.0.0.1:20128/* never authorised executeScript into the dashboard tab. http://127.0.0.1/* matches any port.
+const HOST_ORIGINS = ["http://127.0.0.1/*"];
 async function hasHostAccess() {
   try { return await chrome.permissions.contains({ origins: HOST_ORIGINS }); } catch { return true; } // no permissions API → assume ok
 }
@@ -815,7 +817,14 @@ function saveSettings() {
 function initSettings() {
   // Firefox: request the 127.0.0.1 host permission on click (a user gesture, as permissions.request needs),
   // then re-probe. On grant the whole reachability chain (tab injection) starts working.
+  // Firefox anchors the native permission doorhanger to the toolbar button — exactly where the popup PANEL
+  // hangs — so its "Allow" button lands BEHIND our panel. From the detached standalone window the panel no
+  // longer covers the toolbar, so the doorhanger is clickable. In panel mode, hand off to that window first.
   $("grantBtn").addEventListener("click", async () => {
+    if (!windowed) {
+      chrome.windows.create({ url: chrome.runtime.getURL("popup.html?window=1"), type: "popup", width: 440, height: 660 }, () => window.close());
+      return;
+    }
     let granted = false;
     try { granted = await chrome.permissions.request({ origins: HOST_ORIGINS }); } catch (e) { /* not requestable */ }
     if (granted) {
