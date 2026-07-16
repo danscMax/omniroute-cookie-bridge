@@ -9,84 +9,84 @@
     <img class="logo" src="icons/icon48.png" alt="" />
     <div class="hdr-t">
       <h1>OmniRoute Bridge</h1>
-      <div class="srv"><span id="srvDot" class="dot"></span><span id="srvTxt">проверяю…</span></div>
+      <div class="srv"><span id="srvDot" class="dot"></span><span id="srvTxt" data-i18n="popup_checking">проверяю…</span></div>
     </div>
-    <button class="icon-btn" id="settingsBtn" title="Настройки" aria-label="Настройки">
+    <button class="icon-btn" id="settingsBtn" data-i18n-title="popup_settings" data-i18n-label="popup_settings" title="Настройки" aria-label="Настройки">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
-    <button class="icon-btn" id="openDash" title="Открыть дашборд OmniRoute" aria-label="Открыть дашборд OmniRoute">
+    <button class="icon-btn" id="openDash" data-i18n-title="popup_openDash" data-i18n-label="popup_openDash" title="Открыть дашборд OmniRoute" aria-label="Открыть дашборд OmniRoute">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
     </button>
-    <button class="icon-btn" id="detachBtn" title="Открепить в отдельное окно" aria-label="Открепить в отдельное окно">
+    <button class="icon-btn" id="detachBtn" data-i18n-title="popup_detach" data-i18n-label="popup_detach" title="Открепить в отдельное окно" aria-label="Открепить в отдельное окно">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
     </button>
   </header>
 
   <nav class="tabs" role="tablist">
-    <button class="tab on" id="tab-web" data-pane="web" role="tab" aria-selected="true" aria-controls="pane-web">🍪 Веб <span class="badge" id="bWeb">0</span></button>
-    <button class="tab" id="tab-key" data-pane="key" role="tab" aria-selected="false" aria-controls="pane-key">🔑 API-ключ <span class="badge" id="bKey">0</span></button>
-    <button class="tab" id="tab-oauth" data-pane="oauth" role="tab" aria-selected="false" aria-controls="pane-oauth">🔐 OAuth <span class="badge" id="bOauth">0</span></button>
+    <button class="tab on" id="tab-web" data-pane="web" role="tab" aria-selected="true" aria-controls="pane-web"><span data-i18n="popup_tabWeb">🍪 Веб</span> <span class="badge" id="bWeb">0</span></button>
+    <button class="tab" id="tab-key" data-pane="key" role="tab" aria-selected="false" aria-controls="pane-key"><span data-i18n="popup_tabKey">🔑 API-ключ</span> <span class="badge" id="bKey">0</span></button>
+    <button class="tab" id="tab-oauth" data-pane="oauth" role="tab" aria-selected="false" aria-controls="pane-oauth"><span data-i18n="popup_tabOauth">🔐 OAuth</span> <span class="badge" id="bOauth">0</span></button>
   </nav>
 
   <main class="scroll" id="scroll">
     <div id="settingsPanel" class="card hide">
-      <div class="card-h"><b>Настройки</b><span class="tag" id="setVer"></span></div>
-      <label class="setrow"><span>Фоновая проверка здоровья</span><input type="checkbox" id="setSweep" /></label>
-      <label class="setrow"><span>Интервал проверки</span><select id="setSweepMin"><option value="5">5 мин</option><option value="15">15 мин</option><option value="30">30 мин</option><option value="60">60 мин</option></select></label>
-      <label class="setrow"><span>Уведомления о поломках</span><input type="checkbox" id="setNotify" /></label>
-      <div class="setrow" style="align-items: flex-start"><span>Не проверять в фоне</span><div class="chips" id="sweepSkipChips"></div></div>
-      <div class="hint-sm">Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно.</div>
-      <label class="setrow"><span>Хранить сессии на диске (оживлять на старте)</span><input type="checkbox" id="setPersist" /></label>
-      <div class="hint-sm">Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти.</div>
-      <label class="setrow"><span>Тема</span><select id="setTheme"><option value="auto">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>
-      <div class="actions"><button class="ghost sm grow" id="sweepNowBtn">🩺 Проверить все соединения сейчас</button></div>
-      <div class="actions"><button class="ghost sm grow" id="exportBtn">⬇ Скачать список соединений (бэкап)</button></div>
-      <div class="actions"><button class="ghost sm grow" id="clearProbesBtn">🧹 Сбросить статусы проверок</button></div>
+      <div class="card-h"><b data-i18n="popup_settings">Настройки</b><span class="tag" id="setVer"></span></div>
+      <label class="setrow"><span data-i18n="set_sweep">Фоновая проверка здоровья</span><input type="checkbox" id="setSweep" /></label>
+      <label class="setrow"><span data-i18n="set_sweepInterval">Интервал проверки</span><select id="setSweepMin"><option value="5" data-i18n="set_min5">5 мин</option><option value="15" data-i18n="set_min15">15 мин</option><option value="30" data-i18n="set_min30">30 мин</option><option value="60" data-i18n="set_min60">60 мин</option></select></label>
+      <label class="setrow"><span data-i18n="set_notify">Уведомления о поломках</span><input type="checkbox" id="setNotify" /></label>
+      <div class="setrow" style="align-items: flex-start"><span data-i18n="set_sweepSkip">Не проверять в фоне</span><div class="chips" id="sweepSkipChips"></div></div>
+      <div class="hint-sm" data-i18n="set_sweepSkipHint">Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно.</div>
+      <label class="setrow"><span data-i18n="set_persist">Хранить сессии на диске (оживлять на старте)</span><input type="checkbox" id="setPersist" /></label>
+      <div class="hint-sm" data-i18n="set_persistHint">Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти.</div>
+      <label class="setrow"><span data-i18n="set_theme">Тема</span><select id="setTheme"><option value="auto" data-i18n="set_themeAuto">Системная</option><option value="light" data-i18n="set_themeLight">Светлая</option><option value="dark" data-i18n="set_themeDark">Тёмная</option></select></label>
+      <div class="actions"><button class="ghost sm grow" id="sweepNowBtn" data-i18n="set_sweepNow">🩺 Проверить все соединения сейчас</button></div>
+      <div class="actions"><button class="ghost sm grow" id="exportBtn" data-i18n="set_export">⬇ Скачать список соединений (бэкап)</button></div>
+      <div class="actions"><button class="ghost sm grow" id="clearProbesBtn" data-i18n="set_clearProbes">🧹 Сбросить статусы проверок</button></div>
       <div class="hint-sm" id="setSummary"></div>
       <div class="hint-sm" id="lastSweep"></div>
       <div class="hint-sm" id="lastRecovery"></div>
-      <div class="hint-sm">Открыть попап: <b>Alt+Shift+O</b></div>
+      <div class="hint-sm"><span data-i18n="set_shortcut">Открыть попап:</span> <b>Alt+Shift+O</b></div>
     </div>
     <!-- GLOBAL band: connection health + "needs attention" apply across ALL tabs (web/apikey/oauth),
          so they live above the panes, not inside the Web pane. -->
     <div id="globalBand">
-      <div class="healthrow"><button class="ghost sm" id="probeAllBtn" disabled>🩺 Проверить все</button><span class="res mut" id="probeAllRes"></span></div>
+      <div class="healthrow"><button class="ghost sm" id="probeAllBtn" data-i18n="popup_probeAll" disabled>🩺 Проверить все</button><span class="res mut" id="probeAllRes"></span></div>
       <div class="progress hide" id="probeProg"><div id="probeProgBar"></div></div>
       <div id="webProblems"></div>
       <div id="manageSection"></div>
     </div>
     <!-- WEB -->
     <section id="pane-web" class="pane" role="tabpanel" aria-labelledby="tab-web">
-      <input class="search" id="webSearch" type="search" placeholder="Поиск веб-провайдера…" aria-label="Поиск веб-провайдера" />
+      <input class="search" id="webSearch" type="search" data-i18n-placeholder="web_searchPh" data-i18n-label="web_searchLabel" placeholder="Поиск веб-провайдера…" aria-label="Поиск веб-провайдера" />
       <div id="webCaptured"></div>
-      <div class="grp-title">Все веб-провайдеры <span class="n" id="webAllN">0</span></div>
-      <p class="hint-sm">Открой сайт, залогинься и отправь любое сообщение — сессия появится сверху.</p>
+      <div class="grp-title"><span data-i18n="web_allTitle">Все веб-провайдеры</span> <span class="n" id="webAllN">0</span></div>
+      <p class="hint-sm" data-i18n="web_allHint">Открой сайт, залогинься и отправь любое сообщение — сессия появится сверху.</p>
       <div class="chips" id="webChips"></div>
     </section>
 
     <!-- API KEY -->
     <section id="pane-key" class="pane hide" role="tabpanel" aria-labelledby="tab-key">
       <div id="aistudioCard" class="card accent hide">
-        <div class="card-h"><span class="ico">AI</span><b>Ключ AI Studio найден на странице</b></div>
+        <div class="card-h"><span class="ico">AI</span><b data-i18n="key_aistudioFound">Ключ AI Studio найден на странице</b></div>
         <div class="mono" id="aistudioVal"></div>
-        <div class="row"><button id="aistudioAdd">Добавить как Gemini</button><button class="ghost" id="aistudioDismiss">Скрыть</button></div>
+        <div class="row"><button id="aistudioAdd" data-i18n="key_aistudioAdd">Добавить как Gemini</button><button class="ghost" id="aistudioDismiss" data-i18n="key_aistudioDismiss">Скрыть</button></div>
         <div class="res" id="aistudioRes"></div>
       </div>
-      <input class="search" id="keySearch" type="search" placeholder="Поиск провайдера (170+)…" aria-label="Поиск API-провайдера" />
+      <input class="search" id="keySearch" type="search" data-i18n-placeholder="key_searchPh" data-i18n-label="key_searchLabel" placeholder="Поиск провайдера (170+)…" aria-label="Поиск API-провайдера" />
       <div id="keyList"></div>
-      <p class="hint-sm">Выбери провайдера → вставь ключ. Ключ уходит только в локальный OmniRoute (:20128), расширение его не хранит.</p>
+      <p class="hint-sm" data-i18n="key_hint">Выбери провайдера → вставь ключ. Ключ уходит только в локальный OmniRoute (:20128), расширение его не хранит.</p>
     </section>
 
     <!-- OAUTH -->
     <section id="pane-oauth" class="pane hide" role="tabpanel" aria-labelledby="tab-oauth">
-      <input class="search" id="oauthSearch" type="search" placeholder="Поиск OAuth-провайдера…" aria-label="Поиск OAuth-провайдера" />
-      <p class="hint-sm">Всё подключается прямо здесь: device-код, вход в браузере или вставка токена — по типу провайдера.</p>
+      <input class="search" id="oauthSearch" type="search" data-i18n-placeholder="oauth_searchPh" data-i18n-label="oauth_searchLabel" placeholder="Поиск OAuth-провайдера…" aria-label="Поиск OAuth-провайдера" />
+      <p class="hint-sm" data-i18n="oauth_hint">Всё подключается прямо здесь: device-код, вход в браузере или вставка токена — по типу провайдера.</p>
       <div id="oauthList"></div>
     </section>
   </main>
 
   <footer class="ftr">
-    <span class="hint" id="ftrHint">Дашборд OmniRoute должен быть открыт и залогинен.</span>
+    <span class="hint" id="ftrHint" data-i18n="popup_footerDefault">Дашборд OmniRoute должен быть открыт и залогинен.</span>
   </footer>
 
   <script src="providers.gen.js"></script>

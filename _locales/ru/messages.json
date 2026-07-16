@@ -1,0 +1,677 @@
+{
+  "ext_name": {
+    "message": "OmniRoute Bridge"
+  },
+  "ext_description": {
+    "message": "Заводит всех провайдеров OmniRoute (:20128) в одно окно: захват веб-сессий (вкл. HttpOnly-куки), вставка API-ключей (170+), все OAuth-флоу (device-код / вход в браузере / вставка токена). Честная живая проверка каждого соединения + фоновый health-мониторинг. Каталог генерируется из исходника OmniRoute."
+  },
+  "ext_commandOpen": {
+    "message": "Открыть OmniRoute Bridge"
+  },
+  "popup_checking": {
+    "message": "проверяю…"
+  },
+  "popup_settings": {
+    "message": "Настройки"
+  },
+  "popup_openDash": {
+    "message": "Открыть дашборд OmniRoute"
+  },
+  "popup_detach": {
+    "message": "Открепить в отдельное окно"
+  },
+  "popup_tabWeb": {
+    "message": "🍪 Веб"
+  },
+  "popup_tabKey": {
+    "message": "🔑 API-ключ"
+  },
+  "popup_tabOauth": {
+    "message": "🔐 OAuth"
+  },
+  "popup_probeAll": {
+    "message": "🩺 Проверить все"
+  },
+  "popup_footerDefault": {
+    "message": "Дашборд OmniRoute должен быть открыт и залогинен."
+  },
+  "popup_agoSec": {
+    "message": "$1с назад"
+  },
+  "popup_agoMin": {
+    "message": "$1мин назад"
+  },
+  "popup_agoHour": {
+    "message": "$1ч назад"
+  },
+  "popup_inOmni": {
+    "message": "🔗 В OmniRoute: $1"
+  },
+  "popup_added": {
+    "message": "Добавлено"
+  },
+  "popup_probe": {
+    "message": "Проверка"
+  },
+  "popup_checkedAgo": {
+    "message": "проверено $1"
+  },
+  "popup_probeWorked": {
+    "message": "$1 — работало"
+  },
+  "popup_probeWorks": {
+    "message": "$1 — работает · $2"
+  },
+  "popup_probeFailed": {
+    "message": "$1: $2"
+  },
+  "popup_probeUnknown": {
+    "message": "$1 — не проверить: $2"
+  },
+  "popup_noAnswer": {
+    "message": "нет ответа"
+  },
+  "popup_omniDown": {
+    "message": "OmniRoute :20128 недоступен"
+  },
+  "popup_adding": {
+    "message": "⏳ Добавляю в OmniRoute…"
+  },
+  "popup_error": {
+    "message": "Ошибка"
+  },
+  "popup_addedProbing": {
+    "message": "✓ Добавлено$1 · проверяю живьём…"
+  },
+  "popup_probingLive": {
+    "message": "⏳ Проверяю живьём…"
+  },
+  "popup_check": {
+    "message": "Проверить"
+  },
+  "popup_update": {
+    "message": "🔄 Обновить"
+  },
+  "popup_predictNew": {
+    "message": "заведёт новое соединение"
+  },
+  "popup_nothingFound": {
+    "message": "Ничего не найдено."
+  },
+  "popup_add": {
+    "message": "Добавить"
+  },
+  "popup_cancel": {
+    "message": "Отмена"
+  },
+  "popup_copy": {
+    "message": "Копировать"
+  },
+  "popup_copied": {
+    "message": "✓ Скопировано"
+  },
+  "popup_retry": {
+    "message": "Повторить"
+  },
+  "popup_footerDown": {
+    "message": "⚠ 127.0.0.1:20128 не запущен"
+  },
+  "popup_footerUnreadable": {
+    "message": "⚠ не удалось прочитать соединения — открой дашборд и войди"
+  },
+  "popup_footerLogin": {
+    "message": "Онлайн · 127.0.0.1:20128 — залогинься в дашборде"
+  },
+  "popup_srvDown": {
+    "message": "127.0.0.1:20128 — недоступен"
+  },
+  "popup_noName": {
+    "message": "(без имени)"
+  },
+  "popup_rename": {
+    "message": "Переименовать"
+  },
+  "popup_renameTitle": {
+    "message": "Переименовать соединение"
+  },
+  "popup_saveName": {
+    "message": "Сохранить имя"
+  },
+  "popup_enable": {
+    "message": "Включить"
+  },
+  "popup_disable": {
+    "message": "Выключить"
+  },
+  "popup_toggleTitle": {
+    "message": "Вкл/выкл маршрутизацию на это соединение (не удаляет)"
+  },
+  "popup_delete": {
+    "message": "Удалить"
+  },
+  "popup_deleteAll": {
+    "message": "Удалить все"
+  },
+  "popup_deleteConfirm": {
+    "message": "Точно удалить?"
+  },
+  "popup_deleteAllConfirm": {
+    "message": "Удалить все $1?"
+  },
+  "popup_deleting": {
+    "message": "Удаляю…"
+  },
+  "popup_manageAll": {
+    "message": "⚙ Все соединения"
+  },
+  "popup_stateOff": {
+    "message": "⏸ выключено"
+  },
+  "popup_stateBad": {
+    "message": "🔴 не работает"
+  },
+  "popup_stateOk": {
+    "message": "🟢 активно"
+  },
+  "popup_noConns": {
+    "message": "нет соединений"
+  },
+  "popup_probingN": {
+    "message": "Проверяю $1/$2…"
+  },
+  "popup_probingWith": {
+    "message": "Проверяю $1/$2 · $3"
+  },
+  "popup_probeEta": {
+    "message": "~$1с"
+  },
+  "popup_probeAllDone": {
+    "message": "Готово: 🟢 $1  ·  🔴 $2  ·  ⚪ $3"
+  },
+  "web_searchPh": {
+    "message": "Поиск веб-провайдера…"
+  },
+  "web_searchLabel": {
+    "message": "Поиск веб-провайдера"
+  },
+  "web_allTitle": {
+    "message": "Все веб-провайдеры"
+  },
+  "web_allHint": {
+    "message": "Открой сайт, залогинься и отправь любое сообщение — сессия появится сверху."
+  },
+  "web_thisTab": {
+    "message": "эта вкладка"
+  },
+  "web_capturedN": {
+    "message": "Захвачено: $1 cookies · $2"
+  },
+  "web_captureStale": {
+    "message": "возможно устарело, перезахвати"
+  },
+  "web_accountNamePh": {
+    "message": "Имя аккаунта"
+  },
+  "web_dismissTitle": {
+    "message": "Убрать эту захваченную сессию (не трогает OmniRoute)"
+  },
+  "web_dismissLabel": {
+    "message": "Убрать захваченную сессию"
+  },
+  "web_addAccount": {
+    "message": "➕ Добавить аккаунт"
+  },
+  "web_send": {
+    "message": "Отправить в OmniRoute"
+  },
+  "web_predictUpd": {
+    "message": "перезапишет существующее соединение свежими куками"
+  },
+  "web_readyTitle": {
+    "message": "Готово к отправке"
+  },
+  "web_sendAll": {
+    "message": "Отправить все ($1)"
+  },
+  "web_sendAllSplit": {
+    "message": "$1 обновит · $2 создаст"
+  },
+  "web_fixDead": {
+    "message": "🔄 Обновить только упавшие ($1)"
+  },
+  "web_clearAll": {
+    "message": "✕ Убрать все захваты ($1)"
+  },
+  "web_emptyTitle": {
+    "message": "Захваченных сессий пока нет."
+  },
+  "web_emptyHint": {
+    "message": "1) открой сайт провайдера ниже → 2) залогинься → 3) отправь любое сообщение — сессия появится здесь."
+  },
+  "web_openSite": {
+    "message": "Открыть $1"
+  },
+  "web_sending": {
+    "message": "Отправка $1/$2…"
+  },
+  "web_sendDone": {
+    "message": "Готово: $1/$2"
+  },
+  "web_attention": {
+    "message": "⚠ Требуют внимания"
+  },
+  "web_loginAll": {
+    "message": "Войти заново во все"
+  },
+  "web_loginAllTitle": {
+    "message": "Открыть страницы входа всех проблемных провайдеров"
+  },
+  "web_loginAgain": {
+    "message": "Войти заново"
+  },
+  "web_loginAgainTitle": {
+    "message": "Открыть страницу входа провайдера, залогиниться и отправить сообщение — сессия перезахватится"
+  },
+  "key_aistudioFound": {
+    "message": "Ключ AI Studio найден на странице"
+  },
+  "key_aistudioAdd": {
+    "message": "Добавить как Gemini"
+  },
+  "key_aistudioDismiss": {
+    "message": "Скрыть"
+  },
+  "key_searchPh": {
+    "message": "Поиск провайдера (170+)…"
+  },
+  "key_searchLabel": {
+    "message": "Поиск API-провайдера"
+  },
+  "key_hint": {
+    "message": "Выбери провайдера → вставь ключ. Ключ уходит только в локальный OmniRoute (:20128), расширение его не хранит."
+  },
+  "key_getKey": {
+    "message": "🔑 Открыть $1 за ключом ↗"
+  },
+  "key_namePh": {
+    "message": "Имя аккаунта (опц.)"
+  },
+  "key_keyPh": {
+    "message": "Вставь API-ключ"
+  },
+  "key_required": {
+    "message": "(обязательно)"
+  },
+  "key_optional": {
+    "message": "(опц.)"
+  },
+  "key_advBasePh": {
+    "message": "Свой endpoint (base URL, опц.)"
+  },
+  "key_advBaseTitle": {
+    "message": "OpenAI-совместимый endpoint — для прокси/self-hosted"
+  },
+  "key_advTagPh": {
+    "message": "Тег маршрутизации (опц.)"
+  },
+  "key_advToggle": {
+    "message": "⚙ Дополнительно"
+  },
+  "key_bulkPh": {
+    "message": "Несколько ключей — по одному на строку"
+  },
+  "key_bulkOn": {
+    "message": "＋ Несколько ключей"
+  },
+  "key_bulkOff": {
+    "message": "— Один ключ"
+  },
+  "key_predictUpd": {
+    "message": "перезапишет существующее соединение"
+  },
+  "key_pasteKeys": {
+    "message": "Вставь ключи (по одному на строку)"
+  },
+  "key_pasteKey": {
+    "message": "Вставь ключ"
+  },
+  "key_fillField": {
+    "message": "Заполни: $1"
+  },
+  "key_emptyHint": {
+    "message": "Начни печатать имя провайдера — доступно $1."
+  },
+  "key_withConns": {
+    "message": "С соединениями"
+  },
+  "key_restHint": {
+    "message": "Остальные — через поиск выше ($1 всего)."
+  },
+  "oauth_searchPh": {
+    "message": "Поиск OAuth-провайдера…"
+  },
+  "oauth_searchLabel": {
+    "message": "Поиск OAuth-провайдера"
+  },
+  "oauth_hint": {
+    "message": "Всё подключается прямо здесь: device-код, вход в браузере или вставка токена — по типу провайдера."
+  },
+  "oauth_kindDevice": {
+    "message": "device-код"
+  },
+  "oauth_kindRedirect": {
+    "message": "вход в браузере"
+  },
+  "oauth_kindImport": {
+    "message": "вставка токена"
+  },
+  "oauth_grpDevice": {
+    "message": "Device-код"
+  },
+  "oauth_grpRedirect": {
+    "message": "Вход в браузере"
+  },
+  "oauth_grpImport": {
+    "message": "Вставка токена"
+  },
+  "oauth_zipImport": {
+    "message": "📦 Импорт .zip (много аккаунтов)"
+  },
+  "oauth_zipReading": {
+    "message": "⏳ Читаю архив…"
+  },
+  "oauth_zipReadFail": {
+    "message": "Не удалось прочитать файл"
+  },
+  "oauth_zipImporting": {
+    "message": "⏳ Импортирую…"
+  },
+  "oauth_zipDone": {
+    "message": "🟢 Импортировано: $1 аккаунт(ов)"
+  },
+  "oauth_broken": {
+    "message": "⚠ Недоступен — ошибка сервера OmniRoute"
+  },
+  "oauth_openAuth": {
+    "message": "Открыть страницу авторизации ↗"
+  },
+  "oauth_devicePending": {
+    "message": "⏳ Введи ИМЕННО этот код и подтверди — проверяю каждые $1с"
+  },
+  "oauth_deviceExpiry": {
+    "message": "код ещё ~$1 мин"
+  },
+  "oauth_openLogin": {
+    "message": "Открыть страницу входа ↗"
+  },
+  "oauth_redirectPending": {
+    "message": "⏳ Заверши вход в браузере — жду завершения…"
+  },
+  "oauth_whereToken": {
+    "message": "🔑 Где взять токен ↗"
+  },
+  "oauth_tokenPh": {
+    "message": "Вставь токен или cred-blob"
+  },
+  "oauth_import": {
+    "message": "Импортировать"
+  },
+  "oauth_findLocal": {
+    "message": "🔍 Найти локально"
+  },
+  "oauth_findLocalTitle": {
+    "message": "Импортировать креды из локального CLI провайдера (если установлен)"
+  },
+  "oauth_pasteToken": {
+    "message": "Вставь токен"
+  },
+  "oauth_connectBrowser": {
+    "message": "Подключить (вход в браузере)"
+  },
+  "oauth_inDashboard": {
+    "message": "или в дашборде ↗"
+  },
+  "oauth_inDashboardTitle": {
+    "message": "Открыть флоу в дашборде OmniRoute"
+  },
+  "oauth_connect": {
+    "message": "Подключить"
+  },
+  "oauth_reconnect": {
+    "message": "Переподключить"
+  },
+  "set_sweep": {
+    "message": "Фоновая проверка здоровья"
+  },
+  "set_sweepInterval": {
+    "message": "Интервал проверки"
+  },
+  "set_min5": {
+    "message": "5 мин"
+  },
+  "set_min15": {
+    "message": "15 мин"
+  },
+  "set_min30": {
+    "message": "30 мин"
+  },
+  "set_min60": {
+    "message": "60 мин"
+  },
+  "set_notify": {
+    "message": "Уведомления о поломках"
+  },
+  "set_sweepSkip": {
+    "message": "Не проверять в фоне"
+  },
+  "set_sweepSkipHint": {
+    "message": "Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно."
+  },
+  "set_persist": {
+    "message": "Хранить сессии на диске (оживлять на старте)"
+  },
+  "set_persistHint": {
+    "message": "Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти."
+  },
+  "set_theme": {
+    "message": "Тема"
+  },
+  "set_themeAuto": {
+    "message": "Системная"
+  },
+  "set_themeLight": {
+    "message": "Светлая"
+  },
+  "set_themeDark": {
+    "message": "Тёмная"
+  },
+  "set_sweepNow": {
+    "message": "🩺 Проверить все соединения сейчас"
+  },
+  "set_export": {
+    "message": "⬇ Скачать список соединений (бэкап)"
+  },
+  "set_clearProbes": {
+    "message": "🧹 Сбросить статусы проверок"
+  },
+  "set_shortcut": {
+    "message": "Открыть попап:"
+  },
+  "set_summaryConns": {
+    "message": "🔗 $1 соединений в $2 провайдерах"
+  },
+  "set_summaryCatalog": {
+    "message": "Каталог: web $1 · apikey $2 · oauth $3"
+  },
+  "set_lastSweep": {
+    "message": "Последняя проверка: $1"
+  },
+  "set_noSweep": {
+    "message": "Фоновая проверка ещё не запускалась."
+  },
+  "set_noRecovery": {
+    "message": "Восстановление сессий на старте ещё не запускалось."
+  },
+  "set_recoveryUnreachable": {
+    "message": "↻ На старте OmniRoute был недоступен — ничего не восстановлено · $1"
+  },
+  "set_recoveryDone": {
+    "message": "↻ Восстановлено на старте: $1 · $2"
+  },
+  "set_recoveryPurged": {
+    "message": "протухших удалено: $1"
+  },
+  "set_skipEmpty": {
+    "message": "Пока нечего — нет соединений."
+  },
+  "set_skipOffTitle": {
+    "message": "Пропускается в фоне — нажми, чтобы снова проверять"
+  },
+  "set_skipOnTitle": {
+    "message": "Проверяется в фоне — нажми, чтобы пропускать"
+  },
+  "set_sweeping": {
+    "message": "Проверяю…"
+  },
+  "set_sweepBusy": {
+    "message": "Проверка уже идёт…"
+  },
+  "bg_injectEmpty": {
+    "message": "Пустой ответ инъекции"
+  },
+  "bg_tabOpenFail": {
+    "message": "Не удалось открыть вкладку OmniRoute: $1"
+  },
+  "bg_tabOpenFail2": {
+    "message": "Не удалось открыть вкладку OmniRoute (:20128)."
+  },
+  "bg_injectFail": {
+    "message": "Инъекция не удалась: $1"
+  },
+  "bg_timeout": {
+    "message": "OmniRoute не отвечает (таймаут)."
+  },
+  "bg_notOmni": {
+    "message": "На :20128 не похоже на OmniRoute — запусти OmniRoute и войди в дашборд."
+  },
+  "bg_needLogin": {
+    "message": "OmniRoute: нужен логин (открой дашборд и войди)."
+  },
+  "bg_unknownProvider": {
+    "message": "Неизвестный провайдер"
+  },
+  "bg_noCapture": {
+    "message": "Нет захваченной сессии — открой сайт и отправь сообщение."
+  },
+  "bg_noCreds": {
+    "message": "Не удалось извлечь креды из сессии."
+  },
+  "bg_noProvider": {
+    "message": "Не выбран провайдер"
+  },
+  "bg_emptyKey": {
+    "message": "Пустой ключ"
+  },
+  "bg_noValidKeys": {
+    "message": "Нет валидных ключей (по одному на строку, ≥8 символов)"
+  },
+  "bg_noData": {
+    "message": "нет данных"
+  },
+  "bg_noIdData": {
+    "message": "Нет id/данных"
+  },
+  "bg_noModelsForProbe": {
+    "message": "нет моделей у провайдера для пробы"
+  },
+  "bg_probeTimeout": {
+    "message": "таймаут/проба не прошла: $1"
+  },
+  "bg_noAnswer": {
+    "message": "нет ответа"
+  },
+  "bg_answered200": {
+    "message": "ответил (200)"
+  },
+  "bg_rateLimited": {
+    "message": "лимит запросов (429) — вероятно жив, троттлинг"
+  },
+  "bg_provider5xx": {
+    "message": "5xx у провайдера (временно?): $1"
+  },
+  "bg_probeFailed": {
+    "message": "проба не удалась"
+  },
+  "bg_probeAbort": {
+    "message": "таймаут (>30с) — провайдер долго отвечает"
+  },
+  "bg_noModelsAccess": {
+    "message": "нет доступа к /v1/models"
+  },
+  "bg_noModels": {
+    "message": "нет моделей у провайдера"
+  },
+  "bg_notifyTitle": {
+    "message": "OmniRoute: соединение перестало работать"
+  },
+  "bg_notDeviceFlow": {
+    "message": "Не device-flow провайдер"
+  },
+  "bg_providerUnavailable": {
+    "message": "Провайдер недоступен (ошибка сервера OmniRoute)"
+  },
+  "bg_notRedirect": {
+    "message": "Не redirect-провайдер"
+  },
+  "bg_noBrowserLogin": {
+    "message": "Браузерный вход недоступен — открой в дашборде"
+  },
+  "bg_connReadFail": {
+    "message": "Не удалось прочитать текущие соединения — попробуй ещё раз."
+  },
+  "bg_emptyToken": {
+    "message": "Пустой токен"
+  },
+  "bg_tokenShort": {
+    "message": "Токен слишком короткий — проверь, что скопировал целиком"
+  },
+  "bg_omniUnreachable": {
+    "message": "Не удалось обратиться к OmniRoute: $1"
+  },
+  "bg_noLocalCreds": {
+    "message": "Локальные креды не найдены — вставь токен вручную."
+  },
+  "bg_noZipSupport": {
+    "message": "ZIP-импорт не поддерживается этим провайдером"
+  },
+  "bg_noFile": {
+    "message": "Файл не выбран"
+  },
+  "bg_zipExtractFail": {
+    "message": "Не удалось извлечь ZIP"
+  },
+  "bg_zipEmpty": {
+    "message": "В архиве нет аккаунтов"
+  },
+  "bg_codeExpired": {
+    "message": "Код истёк — начни заново."
+  },
+  "bg_connected": {
+    "message": "Подключено."
+  },
+  "cat_other": {
+    "message": "Прочее"
+  },
+  "hint_zed": {
+    "message": "Zed → настройки → скопируй токен из связки ключей ОС"
+  },
+  "hint_cursor": {
+    "message": "Cursor → Settings → скопируй сессионный токен"
+  },
+  "hint_grokCli": {
+    "message": "grok-cli: запусти `grok auth` и скопируй токен"
+  },
+  "hint_trae": {
+    "message": "Trae → выйди/зайди, скопируй токен из devtools/конфига"
+  }
+}
