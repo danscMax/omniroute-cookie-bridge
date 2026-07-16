@@ -1,5 +1,22 @@
 # OmniRoute Bridge (v4)
 
+> **In English** — a Manifest V3 browser extension (Chrome + Firefox) that onboards every provider of a
+> local [OmniRoute](https://github.com/diegosouzapw/OmniRoute) proxy (`:20128`) from a single popup:
+> **web sessions** (HttpOnly cookies *and* bearer tokens, captured via `webRequest`), **API keys** (167),
+> and **OAuth** flows (18) — each with an honest live probe, not a lying "valid". The provider catalog is
+> **generated from OmniRoute's own source** (`gen-providers.mjs`), so it never drifts.
+>
+> Credentials are pushed into OmniRoute through its dashboard tab (same-origin, so the admin session
+> rides along) — the extension holds no long-lived server secret of its own. Captured web-sessions live
+> in `chrome.storage.session` (memory) by default; an opt-in setting mirrors them to disk so they survive
+> a browser restart and auto-restore on launch, with a 7-day expiry so dead cookies don't linger. UI is
+> localised **ru + en**. Tests: `npm test` (catalog / popup render / service-worker behaviour / i18n).
+>
+> Built as a companion for OmniRoute's `bulk-web-session` import — see
+> [OmniRoute#5843](https://github.com/diegosouzapw/OmniRoute/issues/5843).
+
+---
+
 Расширение (Chrome + Firefox): заводит **всех** провайдеров локального **OmniRoute** (:20128) **в одно окно** —
 веб-сессии (куки), API-ключи и OAuth — каждое с **честной живой проверкой**. Без DevTools, без ручного похода в дашборд.
 
