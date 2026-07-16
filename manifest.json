@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_ext_name__",
-  "version": "4.24.3",
+  "version": "4.24.4",
   "description": "__MSG_ext_description__",
   "default_locale": "ru",
   "author": "Castellyn",
@@ -12,6 +12,9 @@
     "tabs",
     "alarms",
     "notifications"
+  ],
+  "optional_host_permissions": [
+    "http://127.0.0.1:20128/*"
   ],
   "host_permissions": [
     "http://127.0.0.1:20128/*",
