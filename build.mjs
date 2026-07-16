@@ -12,6 +12,13 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = ['providers.gen.js', 'providers.js', 'background.js', 'popup.html', 'popup.css', 'popup.js', 'content-aistudio.js'];
 const root = JSON.parse(readFileSync(join(ROOT, 'manifest.json'), 'utf8'));
 
+// manifest.json is the version the browser sees — package.json must not drift from it (they silently
+// did: 4.22.5 vs 4.21.0). Fail the build rather than ship two answers to "which version is this?".
+const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+if (pkg.version !== root.version) {
+  throw new Error(`version drift: manifest.json=${root.version} vs package.json=${pkg.version} — bump both`);
+}
+
 function emit(dir, manifest) {
   const out = join(ROOT, 'build', dir);
   rmSync(out, { recursive: true, force: true });

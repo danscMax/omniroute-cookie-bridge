@@ -168,7 +168,11 @@ if (typeof module !== "undefined") module.exports = OMNI_GEN;
 writeFileSync(join(process.cwd(), "providers.gen.js"), body);
 
 // keep manifest host_permissions in sync with the generated web list
-const FIXED_HOSTS = ["http://localhost:20128/*", "http://127.0.0.1:20128/*", "https://aistudio.google.com/*"];
+// 127.0.0.1 only — the extension talks to the gateway exclusively over the IPv4 loopback literal
+// (OMNI_BASE, tabs.query/create). "localhost" would be a permission we never exercise: a headless
+// `node serve` binds 0.0.0.0 (IPv4), while browsers resolve localhost to ::1 first — so that host
+// never even connects. Don't ask for what you can't use.
+const FIXED_HOSTS = ["http://127.0.0.1:20128/*", "https://aistudio.google.com/*"];
 const webHosts = new Set(web.flatMap((w) => w.perms));
 const hostPerms = [...FIXED_HOSTS, ...[...webHosts].filter((h) => !FIXED_HOSTS.includes(h)).sort()];
 const manifestPath = join(process.cwd(), "manifest.json");

@@ -4,6 +4,10 @@
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function ago(ms) { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return s + "с назад"; const m = Math.round(s / 60); if (m < 60) return m + "мин назад"; return Math.round(m / 60) + "ч назад"; }
 const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
+// Where to send someone whose session died. The catalog carries a real login URL per web provider
+// (e.g. chatgpt.com/auth/login) — it was generated for all 23 and used by nothing; the homepage is one
+// extra click away from the thing they actually came to do. Falls back to the site if a slug lacks one.
+const loginTarget = (w) => (w && (w.loginUrl || w.site)) || "";
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
@@ -317,15 +321,18 @@ function renderKeyList() {
   const q = $("keySearch").value.trim().toLowerCase();
   const box = $("keyList"); box.textContent = "";
   const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
-  // Search-first: 171 providers is too many to scroll. With no query show only the working set
+  // Search-first: the catalog is too long to scroll. With no query show only the working set
   // (providers that already have a connection); everything else is one keystroke away.
+  // Count comes from the catalog, never a literal — the badge two lines down already said 167 while
+  // this prose still claimed 171, contradicting itself inside one function.
   if (!q) {
-    $("bKey").textContent = String(OMNI_APIKEY.length);
+    const total = OMNI_APIKEY.length;
+    $("bKey").textContent = String(total);
     const have = OMNI_APIKEY.filter((p) => conns[p.slug] && conns[p.slug].total);
-    if (!have.length) { box.append(el("div", "empty", "Начни печатать имя провайдера — доступно 171.")); return; }
+    if (!have.length) { box.append(el("div", "empty", `Начни печатать имя провайдера — доступно ${total}.`)); return; }
     const t = el("div", "grp-title", "С соединениями"); t.append(el("span", "n", String(have.length))); box.append(t);
     for (const p of have) box.append(keyRow(p));
-    box.append(el("p", "hint-sm", "Остальные — через поиск выше (171 всего)."));
+    box.append(el("p", "hint-sm", `Остальные — через поиск выше (${total} всего).`));
     return;
   }
   const list = OMNI_APIKEY.filter(match);
@@ -570,9 +577,9 @@ function renderProblems() {
   let pushed = false;
   const webProbs = merged.filter((m) => OMNI_WEB_MAP[m.provider]);
   if (webProbs.length > 1) {
-    const openAll = el("button", "ghost sm", "Открыть сайты"); openAll.style.marginLeft = "auto"; pushed = true;
-    openAll.title = "Открыть все проблемные сайты для перезахвата";
-    openAll.onclick = () => { for (const m of webProbs) chrome.tabs.create({ url: OMNI_WEB_MAP[m.provider].site }); };
+    const openAll = el("button", "ghost sm", "Войти заново во все"); openAll.style.marginLeft = "auto"; pushed = true;
+    openAll.title = "Открыть страницы входа всех проблемных провайдеров";
+    openAll.onclick = () => { for (const m of webProbs) chrome.tabs.create({ url: loginTarget(OMNI_WEB_MAP[m.provider]) }); };
     t.append(openAll);
   }
   const withId = merged.filter((m) => m.id);
@@ -588,7 +595,7 @@ function renderProblems() {
     const pn = el("div", "prob-name", pr.name || "(без имени)"); if (pr.name) pn.title = pr.name; info.append(pn);
     info.append(el("div", "prob-sub", `🔴 ${label} · ${pr.provider}` + (pr.probe && pr.probe.detail ? " · " + String(pr.probe.detail).slice(0, 50) : "")));
     row.append(info);
-    if (wp) { const open = el("button", "ghost sm", "Открыть сайт"); open.title = "Перезайти в аккаунт и перезахватить"; open.onclick = () => chrome.tabs.create({ url: wp.site }); row.append(open); }
+    if (wp) { const open = el("button", "ghost sm", "Войти заново"); open.title = "Открыть страницу входа провайдера, залогиниться и отправить сообщение — сессия перезахватится"; open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
     else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", "Переподключить"); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
     if (pr.id) connActions(row, info, pr, renderProblems);
     box.append(row);

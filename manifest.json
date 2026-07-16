@@ -13,7 +13,6 @@
     "notifications"
   ],
   "host_permissions": [
-    "http://localhost:20128/*",
     "http://127.0.0.1:20128/*",
     "https://aistudio.google.com/*",
     "https://*.adapta.one/*",
