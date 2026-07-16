@@ -17,8 +17,23 @@
 // they're already loaded as globals via the manifest, and importScripts doesn't exist — so guard it.
 if (typeof OMNI_GEN === "undefined" && typeof importScripts === "function") importScripts("providers.gen.js", "providers.js");
 
+// Chrome MV3 runs the background as a service worker (importScripts exists); Firefox runs it as a
+// background page (background.scripts, no importScripts). We use that as the Chrome-vs-Firefox
+// discriminator for ONE decision: whether a DIRECT fetch to the http loopback works. In Chrome's SW it
+// does (no tab needed). In Firefox a direct http fetch from the extension's secure context to the http
+// loopback does NOT reject — it HANGS (the old probeServer only surfaced it via a 5s abort), so a
+// direct-first with no timeout never returns and the popup reads the server as down. Firefox therefore
+// goes straight through the dashboard tab (http→http), the path the extension uses everywhere else.
+const CAN_DIRECT_FETCH = typeof importScripts === "function";
+
 const SEC = chrome.storage.session; // secrets: cap_<key>, apikey_aistudio, oauth_<slug>
 const LOC = chrome.storage.local;   // non-secret: probe_<slug>, sel_apikey, health_dead, conn_slugs, settings, last_sweep
+
+// i18n lookup. Falls back to the KEY itself, never "": chrome.i18n.getMessage returns an empty string
+// for a missing key, and these strings end up in the popup as the error the user reads.
+// NOTE: the *InPage functions below are serialised into the dashboard tab (executeScript) — they can't
+// close over `t` and have no extension APIs, so any user-facing text they return is passed in as an arg.
+const t = (k, subs) => chrome.i18n.getMessage(k, subs) || k;
 
 // User settings (persisted, non-secret). Defaults chosen for "helpful but not costly".
 // sweepSkip: provider slugs the unattended sweep must not touch. The sweep spends a REAL 1-token
@@ -108,7 +123,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "connections": readConnections().then(send); return true;
     // Reachability check via the dashboard tab (runInDash) — NOT a direct fetch: Firefox blocks a direct
     // http fetch from the extension's secure moz-extension context to the http loopback (mixed content).
-    case "ping": pingGateway().then((ok) => send({ ok })).catch(() => send({ ok: false })); return true;
+    case "ping": pingGateway().then((res) => send(res)).catch((e) => send({ ok: false, detail: String(e).slice(0, 120) })); return true;
     case "deleteConn": deleteConn(req.id).then(send); return true;
     case "updateConn": updateConn(req.id, req.patch).then(send); return true;
     case "getProbes":
@@ -169,7 +184,7 @@ function withTimeout(promise, ms, onTimeout) {
 
 async function injectOnce(tab, func, args) {
   const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func, args });
-  return res && "result" in res ? res.result : { ok: false, error: "Пустой ответ инъекции" };
+  return res && "result" in res ? res.result : { ok: false, error: t("bg_injectEmpty") };
 }
 
 // Run a function in the dashboard page (MAIN world → same-origin, carries the HttpOnly session).
@@ -178,10 +193,10 @@ async function injectOnce(tab, func, args) {
 // server was down otherwise stays a chrome-error page and every later injection keeps failing).
 async function runInDash(func, args, timeout = INJECT_TIMEOUT) {
   let tab;
-  try { tab = await getDashboardTab(); } catch (e) { return { ok: false, error: "Не удалось открыть вкладку OmniRoute: " + String(e).slice(0, 80) }; }
-  if (!tab) return { ok: false, error: "Не удалось открыть вкладку OmniRoute (:20128)." };
-  const attempt = () => injectOnce(tab, func, args).catch((e) => ({ ok: false, __injectErr: true, error: "Инъекция не удалась: " + String(e).slice(0, 100) }));
-  const timeoutVal = { ok: false, error: "OmniRoute не отвечает (таймаут)." };
+  try { tab = await getDashboardTab(); } catch (e) { return { ok: false, error: t("bg_tabOpenFail", [String(e).slice(0, 80)]) }; }
+  if (!tab) return { ok: false, error: t("bg_tabOpenFail2") };
+  const attempt = () => injectOnce(tab, func, args).catch((e) => ({ ok: false, __injectErr: true, error: t("bg_injectFail", [String(e).slice(0, 100)]) }));
+  const timeoutVal = { ok: false, error: t("bg_timeout") };
   let r = await withTimeout(attempt(), timeout, timeoutVal);
   if (r && r.__injectErr) {
     try { await chrome.tabs.reload(tab.id); await new Promise((res) => setTimeout(res, 1500)); } catch { /* tab gone */ }
@@ -209,23 +224,25 @@ async function ensureGateway() {
 }
 // Guard for every credential-writing path: returns an error object to bail with, or null if OK.
 async function requireGateway() {
-  return (await ensureGateway()) ? null : { ok: false, error: "На :20128 не похоже на OmniRoute — запусти OmniRoute и войди в дашборд." };
+  return (await ensureGateway()) ? null : { ok: false, error: t("bg_notOmni") };
 }
 // Reachability for the popup status dot: direct fetch first (Chrome — no tab), fall back to the dashboard
 // tab (Firefox blocks a direct http fetch from the extension's secure context to the http loopback).
 async function pingGateway() {
-  try {
-    const r = await fetch(OMNI_BASE + "/api/providers", { method: "GET" });
-    return !!r; // any response (even 401) means the server is reachable
-  } catch {
-    const r = await runInDash(gatewayProbeInPage);
-    return !!(r && r.ok === true);
+  if (CAN_DIRECT_FETCH) {
+    // Chrome: a direct fetch is fine and needs no tab. On any error, fall through to the tab path.
+    try { if (await fetch(OMNI_BASE + "/api/providers", { method: "GET" })) return { ok: true }; } catch {}
   }
+  const r = await runInDash(gatewayProbeInPage); // Firefox (and Chrome-fallback): via the dashboard tab
+  if (r && r.ok === true) return { ok: true };
+  // Surface WHY: runInDash already localises the failure (tab open / injection / timeout / empty result).
+  // The popup shows this instead of a bare "недоступен", so the real cause is visible without devtools.
+  return { ok: false, detail: (r && (r.error || (r.status ? "HTTP " + r.status : null))) || t("bg_noAnswer") };
 }
 
 // POST /api/providers (create only — NO lying auto-test; the popup probes for real separately).
 // psd = optional providerSpecificData (e.g. { cx } for google-pse-search, { baseUrl } to override endpoint).
-function postProviderInPage(slug, name, apiKey, authType, psd) {
+function postProviderInPage(slug, name, apiKey, authType, psd, loginErr) {
   const body = { provider: slug, authType, name, apiKey };
   if (psd && Object.keys(psd).length) body.providerSpecificData = psd;
   return fetch("/api/providers", {
@@ -233,7 +250,7 @@ function postProviderInPage(slug, name, apiKey, authType, psd) {
     body: JSON.stringify(body),
   }).then(async (r) => {
     const text = await r.text();
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "OmniRoute: нужен логин (открой дашборд и войди)." };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     let p = {}; try { p = JSON.parse(text); } catch (x) {}
     if (r.status !== 201 && r.status !== 200) return { ok: false, error: typeof p.error === "string" ? p.error : "HTTP " + r.status };
     return { ok: true, id: p.connection && p.connection.id };
@@ -243,50 +260,50 @@ function postProviderInPage(slug, name, apiKey, authType, psd) {
 // Shared add tail: name = "<base> · <stable per-credential id>" so OmniRoute's UPSERT-by-name treats
 // "same key re-added" as an update, but two DIFFERENT keys under one custom name stay separate.
 async function postApiKey(slug, base, apiKey, psd) {
-  const r = await runInDash(postProviderInPage, [slug, base + " · " + omniAccountId(apiKey), apiKey, "apikey", psd || null]);
+  const r = await runInDash(postProviderInPage, [slug, base + " · " + omniAccountId(apiKey), apiKey, "apikey", psd || null, t("bg_needLogin")]);
   return { ...r, slug };
 }
 
 async function sendToOmni(providerKey, name) {
   const provider = OMNI_WEB_MAP[providerKey];
-  if (!provider) return { ok: false, error: "Неизвестный провайдер" };
+  if (!provider) return { ok: false, error: t("bg_unknownProvider") };
   const gw = await requireGateway(); if (gw) return gw;
   const stored = await SEC.get("cap_" + providerKey);
   const cap = stored["cap_" + providerKey];
-  if (!cap) return { ok: false, error: "Нет захваченной сессии — открой сайт и отправь сообщение." };
+  if (!cap) return { ok: false, error: t("bg_noCapture") };
   const apiKey = omniBuildCredential(provider, cap);
-  if (!apiKey) return { ok: false, error: "Не удалось извлечь креды из сессии." };
+  if (!apiKey) return { ok: false, error: t("bg_noCreds") };
   return postApiKey(provider.slug, (name && name.trim()) ? name.trim() : provider.label, apiKey);
 }
 
 async function sendApiKeyToOmni(slug, name, apiKey, psd) {
-  if (!slug) return { ok: false, error: "Не выбран провайдер" };
+  if (!slug) return { ok: false, error: t("bg_noProvider") };
   apiKey = (apiKey || "").trim();
-  if (!apiKey) return { ok: false, error: "Пустой ключ" };
+  if (!apiKey) return { ok: false, error: t("bg_emptyKey") };
   const gw = await requireGateway(); if (gw) return gw;
   return postApiKey(slug, (name && name.trim()) ? name.trim() : slug, apiKey, psd);
 }
 
 // Bulk add: several API keys of ONE provider at once (dashboard's bulkCreateProviderSchema).
-function bulkApiKeyInPage(slug, entries) {
+function bulkApiKeyInPage(slug, entries, loginErr) {
   return fetch("/api/providers/bulk", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
     body: JSON.stringify({ provider: slug, entries }),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "OmniRoute: нужен логин (открой дашборд и войди)." };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     if ((r.ok || r.status === 201) && !(d && d.error)) return { ok: true, added: entries.length };
     return { ok: false, error: (d && d.error) || "HTTP " + r.status };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
 async function bulkAddApiKeys(slug, keys) {
-  if (!slug) return { ok: false, error: "Не выбран провайдер" };
+  if (!slug) return { ok: false, error: t("bg_noProvider") };
   const clean = (keys || []).map((k) => (k || "").trim()).filter((k) => k.length >= 8);
-  if (!clean.length) return { ok: false, error: "Нет валидных ключей (по одному на строку, ≥8 символов)" };
+  if (!clean.length) return { ok: false, error: t("bg_noValidKeys") };
   const gw = await requireGateway(); if (gw) return gw;
   // Each key gets a stable per-credential name+id (mirrors single-add) so re-adds UPSERT, not duplicate.
   const entries = clean.map((k) => ({ name: slug + " · " + omniAccountId(k), apiKey: k, accountId: omniAccountId(k) }));
-  const r = await runInDash(bulkApiKeyInPage, [slug, entries]);
+  const r = await runInDash(bulkApiKeyInPage, [slug, entries, t("bg_needLogin")]);
   return { ...r, slug };
 }
 
@@ -301,7 +318,7 @@ function readConnectionsInPage() {
 async function readConnections() {
   const res = await runInDash(readConnectionsInPage); // runInDash already reloads a dead tab + retries internally
   if (!res || res.ok !== true || !Array.isArray(res.connections)) {
-    return { byProvider: {}, total: 0, problems: [], unreachable: true, error: (res && res.error) || "нет данных" };
+    return { byProvider: {}, total: 0, problems: [], unreachable: true, error: (res && res.error) || t("bg_noData") };
   }
   const list = res.connections.map((c) => ({ provider: c.provider, id: c.id, name: c.name || "", testStatus: c.testStatus, hasError: !!c.errorCode, isActive: c.isActive !== false }));
   const byProvider = {};
@@ -328,19 +345,19 @@ function deleteConnInPage(id) {
 async function deleteConn(id) { return runInDash(deleteConnInPage, [id]); }
 
 // Update an existing connection (rename / enable-disable / priority) — PATCH /api/providers/<id>.
-function updateConnInPage(id, patch) {
+function updateConnInPage(id, patch, loginErr) {
   return fetch("/api/providers/" + id, {
     method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "OmniRoute: нужен логин (открой дашборд и войди)." };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     return (r.ok && !(d && d.error)) ? { ok: true } : { ok: false, error: (d && d.error) || "HTTP " + r.status };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 100) }));
 }
 async function updateConn(id, patch) {
-  if (!id || !patch || typeof patch !== "object") return { ok: false, error: "Нет id/данных" };
+  if (!id || !patch || typeof patch !== "object") return { ok: false, error: t("bg_noIdData") };
   const gw = await requireGateway(); if (gw) return gw;
-  return runInDash(updateConnInPage, [id, patch]);
+  return runInDash(updateConnInPage, [id, patch, t("bg_needLogin")]);
 }
 
 // ── real probe (honest "does it work") ──────────────────────────────────────
@@ -358,16 +375,17 @@ function fetchModelsInPage() {
 }
 async function fetchModels() {
   if (_modelsCache && Date.now() - _modelsCache.at < 45000) return { ok: true, models: _modelsCache.models };
-  // Direct fetch first (Chrome — no tab); on throw (Firefox mixed content) fall back to the dashboard tab.
-  try {
-    const mr = await fetch(OMNI_BASE + "/v1/models");
-    if (mr.ok) { const models = (await mr.json()).data || []; _modelsCache = { at: Date.now(), models }; return { ok: true, models }; }
-    return { ok: false };
-  } catch {
-    const r = await runInDash(fetchModelsInPage);
-    if (r && r.ok && Array.isArray(r.models)) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
-    return { ok: false };
+  if (CAN_DIRECT_FETCH) {
+    // Chrome: direct, no tab. A non-ok response is a real answer (don't tab-retry); only a throw falls through.
+    try {
+      const mr = await fetch(OMNI_BASE + "/v1/models");
+      if (mr.ok) { const models = (await mr.json()).data || []; _modelsCache = { at: Date.now(), models }; return { ok: true, models }; }
+      return { ok: false };
+    } catch {}
   }
+  const r = await runInDash(fetchModelsInPage); // Firefox: via the dashboard tab (a direct fetch hangs)
+  if (r && r.ok && Array.isArray(r.models)) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
+  return { ok: false };
 }
 // One real completion against the provider's first model. 5xx / network → ONE retry (transient
 // upstream); 4xx → real auth verdict, no retry. Shared by single probe, batch, and health sweep.
@@ -388,45 +406,48 @@ function chatProbeInPage(modelId) {
 // Direct completion probe first (Chrome — no tab); on throw (Firefox mixed content) fall back to the tab.
 async function chatProbe(modelId) {
   const body = JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 });
-  try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
-      method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
-    }).finally(() => clearTimeout(to));
-    let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
-    return { fetched: true, ok: r.ok, status: r.status, msg };
-  } catch (e) {
-    if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: "таймаут (>30с) — провайдер долго отвечает" };
-    const r = await runInDash(chatProbeInPage, [modelId], 32000); // direct threw → Firefox mixed content → tab
-    if (r && r.fetched) return r;
-    return { fetched: true, netErr: true, msg: String((r && r.error) || e).slice(0, 120) };
+  if (CAN_DIRECT_FETCH) {
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 30000);
+      const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
+        method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
+      }).finally(() => clearTimeout(to));
+      let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
+      return { fetched: true, ok: r.ok, status: r.status, msg };
+    } catch (e) {
+      if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: t("bg_probeAbort") };
+      // any other direct error → fall through to the tab
+    }
   }
+  const r = await runInDash(chatProbeInPage, [modelId], 32000); // Firefox: via the tab (a direct fetch hangs)
+  if (r && r.fetched) return r;
+  return { fetched: true, netErr: true, msg: String((r && r.error) || "").slice(0, 120) };
 }
 async function probeModel(models, slug) {
   const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
-  if (!m) return { alive: null, detail: "нет моделей у провайдера для пробы" };
+  if (!m) return { alive: null, detail: t("bg_noModelsForProbe") };
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await chatProbe(m.id); // direct in Chrome, dashboard-tab fallback in Firefox
     // runInDash-level failure (inject error / timeout) → retry once, then UNKNOWN (not "dead").
     if (!r || !r.fetched) {
       if (attempt === 0) continue;
-      return { alive: null, model: m.id, detail: "таймаут/проба не прошла: " + String((r && r.error) || "нет ответа").slice(0, 100) };
+      return { alive: null, model: m.id, detail: t("bg_probeTimeout", [String((r && r.error) || t("bg_noAnswer")).slice(0, 100)]) };
     }
     if (r.netErr) { if (attempt === 0) continue; return { alive: null, model: m.id, detail: String(r.msg).slice(0, 120) }; }
-    if (r.ok) return { alive: true, model: m.id, detail: "ответил (200)" };
+    if (r.ok) return { alive: true, model: m.id, detail: t("bg_answered200") };
     if (r.status >= 500 && attempt === 0) continue; // transient upstream → retry once
     // 429 = rate-limited, NOT dead — the account is almost certainly authenticated, just throttled.
     // A persistent 5xx is a provider-side blip, not a verified auth failure → don't flag either as dead.
-    if (r.status === 429) return { alive: null, model: m.id, status: 429, detail: "лимит запросов (429) — вероятно жив, троттлинг" };
-    if (r.status >= 500) return { alive: null, model: m.id, status: r.status, detail: "5xx у провайдера (временно?): " + String(r.msg).slice(0, 110) };
+    if (r.status === 429) return { alive: null, model: m.id, status: 429, detail: t("bg_rateLimited") };
+    if (r.status >= 500) return { alive: null, model: m.id, status: r.status, detail: t("bg_provider5xx", [String(r.msg).slice(0, 110)]) };
     return { alive: false, model: m.id, status: r.status, detail: String(r.msg).slice(0, 140) };
   }
-  return { alive: null, detail: "проба не удалась" };
+  return { alive: null, detail: t("bg_probeFailed") };
 }
 async function runProbe(slug) {
   const mm = await fetchModels();
-  if (!mm.ok) return { alive: null, detail: "нет доступа к /v1/models" };
+  if (!mm.ok) return { alive: null, detail: t("bg_noModelsAccess") };
   return probeModel(mm.models, slug);
 }
 async function realProbe(slug) {
@@ -447,7 +468,7 @@ async function probeAll(slugs, emit = true) {
     const now = Date.now();
     for (let i = 0; i < slugs.length; i++) {
       const slug = slugs[i];
-      out[slug] = models.length ? await probeModel(models, slug) : { alive: null, detail: mm.ok ? "нет моделей у провайдера" : "нет доступа к /v1/models" };
+      out[slug] = models.length ? await probeModel(models, slug) : { alive: null, detail: mm.ok ? t("bg_noModels") : t("bg_noModelsAccess") };
       // Persist each verdict as it lands, NOT one batch at the end: every verdict costs a real
       // completion against the provider, and an MV3 worker can be killed mid-sweep — batching traded
       // the whole run's work for saving a few microsecond-cheap storage writes.
@@ -491,7 +512,7 @@ async function healthSweep(force = false) {
     try {
       chrome.notifications.create("omnihealth_" + Date.now(), {
         type: "basic", iconUrl: "icons/icon128.png", requireInteraction: true, // a dead connection is worth a sticky toast
-        title: "OmniRoute: соединение перестало работать", message: "🔴 " + names,
+        title: t("bg_notifyTitle"), message: "🔴 " + names,
       });
     } catch (e) { /* notifications permission absent → badge still turns red */ }
   }
@@ -572,26 +593,26 @@ function oauthAutoImportInPage(provider) {
     .catch(() => ({ ok: false }));
 }
 // Import-token flows: user pastes a CLI/session token; OmniRoute validates + creates the connection.
-function oauthImportTokenInPage(provider, token) {
+function oauthImportTokenInPage(provider, token, loginErr) {
   return fetch("/api/oauth/" + provider + "/import-token", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
     body: JSON.stringify({ token, connectionId: null }),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "OmniRoute: нужен логин (открой дашборд и войди)." };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     // Trust success only on a 2xx WITHOUT an error field (some endpoints return 200 + {error}).
     if ((r.ok || r.status === 201) && !(d && d.error)) return { ok: true, id: d.connection && d.connection.id };
     return { ok: false, error: (d && d.error) || "HTTP " + r.status };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
 // Paste-credentials: some providers export an "omniroute-cred-v1.…" blob instead of a bare token.
-function oauthPasteCredsInPage(provider, blob) {
+function oauthPasteCredsInPage(provider, blob, loginErr) {
   return fetch("/api/oauth/" + provider + "/paste-credentials", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
     body: JSON.stringify({ blob, connectionId: null }),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
-    if (r.status === 401 || r.status === 403) return { ok: false, error: "OmniRoute: нужен логин (открой дашборд и войди)." };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     return ((r.ok || r.status === 201) && !(d && d.error)) ? { ok: true, id: d.connection && d.connection.id } : { ok: false, error: (d && d.error) || "HTTP " + r.status };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
@@ -599,10 +620,10 @@ const OAUTH_KEY = (slug) => "oauth_" + slug;
 
 async function oauthStart(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
-  if (!p || !p.deviceFlow) return { ok: false, error: "Не device-flow провайдер" };
+  if (!p || !p.deviceFlow) return { ok: false, error: t("bg_notDeviceFlow") };
   const gw = await requireGateway(); if (gw) return gw;
   const d = await runInDash(oauthDeviceCodeInPage, [provider]);
-  if (!d || d.error || !d.device_code) return { ok: false, error: (d && d.error) || "Провайдер недоступен (ошибка сервера OmniRoute)" };
+  if (!d || d.error || !d.device_code) return { ok: false, error: (d && d.error) || t("bg_providerUnavailable") };
   // Some providers (kiro / amazon-q, AWS SSO) echo client creds back — the poll needs them.
   const extraData = (d._clientId || d._clientSecret || d._region)
     ? { _clientId: d._clientId, _clientSecret: d._clientSecret, _region: d._region } : null;
@@ -623,20 +644,20 @@ async function oauthStart(provider) {
 // a plain /authorize whose authUrl redirects to OmniRoute's own /callback page.
 async function oauthConnect(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
-  if (!p || p.kind !== "redirect") return { ok: false, error: "Не redirect-провайдер" };
+  if (!p || p.kind !== "redirect") return { ok: false, error: t("bg_notRedirect") };
   const gw = await requireGateway(); if (gw) return gw;
   let d = await runInDash(oauthStartCallbackInPage, [provider]);
   let authUrl = d && d.authUrl;
   if (!authUrl) {
     const a = await runInDash(oauthAuthorizeInPage, [provider, OMNI_BASE + "/callback"]);
     authUrl = a && a.authUrl;
-    if (!authUrl) return { ok: false, error: (a && a.error) || (d && d.error) || "Браузерный вход недоступен — открой в дашборде" };
+    if (!authUrl) return { ok: false, error: (a && a.error) || (d && d.error) || t("bg_noBrowserLogin") };
   }
   // Abort if we can't read a trustworthy baseline — a defaulted 0 would make a pre-existing
   // connection look like a fresh success on the very next poll (false "Подключено").
   _connCount = null; // fresh baseline read, not a memoized one
   const baseCount = await providerConnCount(provider);
-  if (typeof baseCount !== "number" || baseCount < 0) return { ok: false, error: "Не удалось прочитать текущие соединения — попробуй ещё раз." };
+  if (typeof baseCount !== "number" || baseCount < 0) return { ok: false, error: t("bg_connReadFail") };
   const state = {
     provider, label: p.label, kind: "redirect", status: "pending", detail: "", verifyUrl: authUrl,
     baseCount,
@@ -651,14 +672,14 @@ async function oauthConnect(provider) {
 // Import-token: paste a CLI/session token → OmniRoute creates the connection (create-only; probe separately).
 async function oauthImport(provider, token) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
-  if (!p) return { ok: false, error: "Неизвестный провайдер" };
+  if (!p) return { ok: false, error: t("bg_unknownProvider") };
   token = (token || "").trim();
-  if (!token) return { ok: false, error: "Пустой токен" };
-  if (token.length < 8) return { ok: false, error: "Токен слишком короткий — проверь, что скопировал целиком" };
+  if (!token) return { ok: false, error: t("bg_emptyToken") };
+  if (token.length < 8) return { ok: false, error: t("bg_tokenShort") };
   const gw = await requireGateway(); if (gw) return gw;
   // Accept EITHER a bare token (import-token) OR an exported "omniroute-cred-v1.…" blob (paste-credentials).
   const inPage = token.startsWith("omniroute-cred-v1.") ? oauthPasteCredsInPage : oauthImportTokenInPage;
-  const r = await runInDash(inPage, [provider, token]);
+  const r = await runInDash(inPage, [provider, token, t("bg_needLogin")]);
   return { ...r, slug: provider };
 }
 
@@ -666,12 +687,12 @@ async function oauthImport(provider, token) {
 // Best-effort — falls back to manual paste on "not found" / server error.
 async function oauthAutoImport(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
-  if (!p) return { ok: false, error: "Неизвестный провайдер" };
+  if (!p) return { ok: false, error: t("bg_unknownProvider") };
   const gw = await requireGateway(); if (gw) return gw;
   const d = await runInDash(oauthAutoImportInPage, [provider]);
-  if (d && d.error) return { ok: false, error: "Не удалось обратиться к OmniRoute: " + d.error }; // runInDash-level failure (timeout/inject) ≠ "not found"
-  if (!d || d.ok !== true || !d.found || !d.token) return { ok: false, error: "Локальные креды не найдены — вставь токен вручную." };
-  const r = await runInDash(oauthImportTokenInPage, [provider, d.token]);
+  if (d && d.error) return { ok: false, error: t("bg_omniUnreachable", [String(d.error)]) }; // runInDash-level failure (timeout/inject) ≠ "not found"
+  if (!d || d.ok !== true || !d.found || !d.token) return { ok: false, error: t("bg_noLocalCreds") };
+  const r = await runInDash(oauthImportTokenInPage, [provider, d.token, t("bg_needLogin")]);
   return { ...r, slug: provider };
 }
 
@@ -699,12 +720,12 @@ function importBulkInPage(authSlug, entries) {
 }
 async function zipImport(provider, b64) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
-  if (!p || !p.zipAuth) return { ok: false, error: "ZIP-импорт не поддерживается этим провайдером" };
-  if (!b64) return { ok: false, error: "Файл не выбран" };
+  if (!p || !p.zipAuth) return { ok: false, error: t("bg_noZipSupport") };
+  if (!b64) return { ok: false, error: t("bg_noFile") };
   const gw = await requireGateway(); if (gw) return gw;
   const ex = await runInDash(zipExtractInPage, [p.zipAuth, b64]);
-  if (!ex || ex.ok !== true) return { ok: false, error: (ex && ex.error) || "Не удалось извлечь ZIP" };
-  if (!ex.entries.length) return { ok: false, error: "В архиве нет аккаунтов" };
+  if (!ex || ex.ok !== true) return { ok: false, error: (ex && ex.error) || t("bg_zipExtractFail") };
+  if (!ex.entries.length) return { ok: false, error: t("bg_zipEmpty") };
   const r = await runInDash(importBulkInPage, [p.zipAuth, ex.entries]);
   return { ...r, slug: provider };
 }
@@ -717,7 +738,7 @@ async function pollProvider(slug) {
   const { [key]: s } = await SEC.get(key);
   if (!s || s.status !== "pending") return s || null;
   if (Date.now() > s.expiresAt) {
-    const done = { ...s, status: "expired", detail: "Код истёк — начни заново." };
+    const done = { ...s, status: "expired", detail: t("bg_codeExpired") };
     await SEC.set({ [key]: done }); return done;
   }
   // Respect the device-flow polling interval. GitHub (interval:5) returns slow_down — and then
@@ -730,7 +751,7 @@ async function pollProvider(slug) {
   if (s.kind === "redirect") {
     const n = await providerConnCount(s.provider);
     if (typeof n === "number" && n > (s.baseCount || 0)) {
-      const done = { ...s, status: "success", detail: "Подключено." };
+      const done = { ...s, status: "success", detail: t("bg_connected") };
       await SEC.set({ [key]: done }); return done;
     }
     const wait = { ...s, nextPollAt: Date.now() + interval * 1000 };
@@ -739,7 +760,7 @@ async function pollProvider(slug) {
   // Device flow: poll the token endpoint.
   const r = await runInDash(oauthPollInPage, [s.provider, s.deviceCode, s.codeVerifier, s.extraData]);
   if (r && r.success === true) {
-    const done = { ...s, status: "success", connId: (r.connection && r.connection.id) || s.connId, detail: "Подключено." };
+    const done = { ...s, status: "success", connId: (r.connection && r.connection.id) || s.connId, detail: t("bg_connected") };
     await SEC.set({ [key]: done }); return done;
   }
   if (r && r.error === "slow_down") {

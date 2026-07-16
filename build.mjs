@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = ['providers.gen.js', 'providers.js', 'background.js', 'popup.html', 'popup.css', 'popup.js', 'content-aistudio.js'];
+const DIRS = ['icons', '_locales']; // copied wholesale — _locales carries a messages.json per locale
 const root = JSON.parse(readFileSync(join(ROOT, 'manifest.json'), 'utf8'));
 
 // manifest.json is the version the browser sees — package.json must not drift from it (they silently
@@ -24,7 +25,7 @@ function emit(dir, manifest) {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   for (const f of SRC) copyFileSync(join(ROOT, f), join(out, f));
-  cpSync(join(ROOT, 'icons'), join(out, 'icons'), { recursive: true });
+  for (const d of DIRS) cpSync(join(ROOT, d), join(out, d), { recursive: true });
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log('built build/' + dir);
 }

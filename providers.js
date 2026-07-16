@@ -11,6 +11,18 @@ if (typeof OMNI_GEN === "undefined" && typeof importScripts === "function") {
 // server as "not running". 127.0.0.1 is always the IPv4 loopback the server listens on. See PR notes.
 const OMNI_BASE = "http://127.0.0.1:20128";
 
+// The few user-facing strings this adapter owns (OAuth token hints, the catch-all family label) live in
+// _locales like the rest of the UI. Resolved through a guarded lookup rather than chrome.i18n directly:
+// this file is also loaded by the node test harness, where `chrome` does not exist, and the inline text
+// is the fallback there (and for a locale that lacks the key).
+const T = (k, fb) => {
+  try {
+    return chrome.i18n.getMessage(k) || fb;
+  } catch (e) {
+    return fb;
+  }
+};
+
 // DeepSeek Web wants the Bearer userToken (cookie header → 502). Everyone else: OmniRoute's
 // web validators accept the full Cookie header and extract what they need themselves.
 const WEB_CRED_TOKEN = new Set(["deepseek-web"]);
@@ -47,7 +59,7 @@ const APIKEY_EXTRA_FIELDS = {
   "google-pse-search": [{ key: "cx", label: "Search Engine ID (cx)", required: true, hint: "Programmable Search Engine ID" }],
 };
 const OMNI_APIKEY = (OMNI_GEN.apikey || []).map((a) => ({
-  slug: a.slug, label: a.label, get: a.get, free: !!a.free, family: a.family || "Прочее",
+  slug: a.slug, label: a.label, get: a.get, free: !!a.free, family: a.family || T("cat_other", "Прочее"),
   extra: APIKEY_EXTRA_FIELDS[a.slug] || null,
 }));
 const OMNI_APIKEY_MAP = {};
@@ -65,10 +77,10 @@ const OAUTH_ZIP = { claude: "claude-auth", codex: "codex-auth", antigravity: "ag
 // Where the user grabs a CLI token for import_token providers (shown as a "где взять" link).
 const OAUTH_TOKEN_HINT = {
   windsurf: "https://windsurf.com/show-auth-token",
-  zed: "Zed → настройки → скопируй токен из связки ключей ОС",
-  cursor: "Cursor → Settings → скопируй сессионный токен",
-  "grok-cli": "grok-cli: запусти `grok auth` и скопируй токен",
-  trae: "Trae → выйди/зайди, скопируй токен из devtools/конфига",
+  zed: T("hint_zed", "Zed → настройки → скопируй токен из связки ключей ОС"),
+  cursor: T("hint_cursor", "Cursor → Settings → скопируй сессионный токен"),
+  "grok-cli": T("hint_grokCli", "grok-cli: запусти `grok auth` и скопируй токен"),
+  trae: T("hint_trae", "Trae → выйди/зайди, скопируй токен из devtools/конфига"),
 };
 // flowType → how we drive it: device_code = code+poll; import_token = paste a token; everything else
 // (authorization_code[_pkce]) = browser redirect completed by OmniRoute's callback server (poll-callback).

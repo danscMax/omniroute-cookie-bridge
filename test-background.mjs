@@ -8,14 +8,16 @@ import { makeChrome, makeSandbox, runFiles, tick } from "./test-harness.mjs";
 // ── boot the real SW ────────────────────────────────────────────────────────
 // `dash` lets a test answer each runInDash injection by the injected function's NAME, which is how the
 // SW talks to the dashboard tab (chrome.scripting.executeScript with `func`).
-function boot({ dash = {}, settings } = {}) {
+function boot({ dash = {}, settings, fetch } = {}) {
   const chrome = makeChrome();
   chrome.scripting.executeScript = ({ func, args }) => {
     const reply = dash[func.name];
     return Promise.resolve([{ result: typeof reply === "function" ? reply(...(args || [])) : (reply ?? { ok: true }) }]);
   };
   if (settings) chrome.storage.local.set({ settings });
-  const sandbox = makeSandbox({ chrome });
+  // No importScripts in node → CAN_DIRECT_FETCH is false → the SW behaves like Firefox (tab path). A test
+  // can pass a hanging `fetch` to prove the direct path is never awaited in that mode.
+  const sandbox = makeSandbox({ chrome, extra: fetch ? { fetch } : {} });
   const errors = runFiles(sandbox, ["providers.gen.js", "providers.js", "background.js"]);
   assert.deepEqual(errors, [], `background.js load errors: ${JSON.stringify(errors)}`);
   return { chrome, sandbox };
@@ -213,4 +215,33 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.ok(!chrome.storage.local._dump()["probe_kimi-web"], "and gets no stale verdict written for it");
 }
 
-console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured");
+// ── 12. reachability never hangs on the Firefox direct-fetch trap ────────────────────────────────
+// In Firefox a direct fetch to the http loopback HANGS (doesn't reject). CAN_DIRECT_FETCH is false
+// without importScripts (this node sandbox, and Firefox's background page), so pingGateway must go
+// straight to the tab and never await the hanging fetch — the regression that showed the server as
+// "недоступен". A never-resolving fetch simulates the hang.
+{
+  const { sandbox } = boot({
+    dash: { gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }) },
+    fetch: () => new Promise(() => {}), // never resolves — the Firefox loopback hang
+  });
+  const r = await Promise.race([sandbox.pingGateway(), tick(600).then(() => "HUNG")]);
+  assert.notEqual(r, "HUNG", "pingGateway resolves via the tab without awaiting the hanging direct fetch");
+  assert.equal(r.ok, true, "and reports the server reachable");
+}
+
+// ── 13. probes don't hang either (fetchModels/chatProbe go to the tab in Firefox) ────────────────
+{
+  const { sandbox } = boot({
+    dash: {
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }] }),
+      chatProbeInPage: () => ({ fetched: true, ok: true, status: 200, msg: "" }),
+    },
+    fetch: () => new Promise(() => {}), // hang the direct path
+  });
+  const { results } = await Promise.race([sandbox.probeAll(["chatgpt-web"], false), tick(800).then(() => ({ results: "HUNG" }))]);
+  assert.notEqual(results, "HUNG", "probeAll completes via the tab without awaiting the hanging direct fetch");
+  assert.equal(results["chatgpt-web"].alive, true, "and still returns the real verdict");
+}
+
+console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured, no direct-fetch hang (Firefox)");

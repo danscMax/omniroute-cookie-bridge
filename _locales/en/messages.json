@@ -1,0 +1,683 @@
+{
+  "ext_name": {
+    "message": "OmniRoute Bridge"
+  },
+  "ext_description": {
+    "message": "Brings every OmniRoute provider (:20128) into one window: web-session capture (incl. HttpOnly cookies), API-key entry (170+), all OAuth flows (device code / browser login / token paste). An honest live check of every connection plus background health monitoring. The catalog is generated from OmniRoute's own source."
+  },
+  "ext_commandOpen": {
+    "message": "Open OmniRoute Bridge"
+  },
+  "popup_checking": {
+    "message": "checking…"
+  },
+  "popup_settings": {
+    "message": "Settings"
+  },
+  "popup_openDash": {
+    "message": "Open the OmniRoute dashboard"
+  },
+  "popup_detach": {
+    "message": "Detach into a separate window"
+  },
+  "popup_tabWeb": {
+    "message": "🍪 Web"
+  },
+  "popup_tabKey": {
+    "message": "🔑 API key"
+  },
+  "popup_tabOauth": {
+    "message": "🔐 OAuth"
+  },
+  "popup_probeAll": {
+    "message": "🩺 Check all"
+  },
+  "popup_footerDefault": {
+    "message": "The OmniRoute dashboard must be open and signed in."
+  },
+  "popup_agoSec": {
+    "message": "$1s ago"
+  },
+  "popup_agoMin": {
+    "message": "$1m ago"
+  },
+  "popup_agoHour": {
+    "message": "$1h ago"
+  },
+  "popup_inOmni": {
+    "message": "🔗 In OmniRoute: $1"
+  },
+  "popup_added": {
+    "message": "Added"
+  },
+  "popup_probe": {
+    "message": "Check"
+  },
+  "popup_checkedAgo": {
+    "message": "checked $1"
+  },
+  "popup_probeWorked": {
+    "message": "$1 — was working"
+  },
+  "popup_probeWorks": {
+    "message": "$1 — works · $2"
+  },
+  "popup_probeFailed": {
+    "message": "$1: $2"
+  },
+  "popup_probeUnknown": {
+    "message": "$1 — can't tell: $2"
+  },
+  "popup_noAnswer": {
+    "message": "no response"
+  },
+  "popup_omniDown": {
+    "message": "OmniRoute :20128 is unreachable"
+  },
+  "popup_adding": {
+    "message": "⏳ Adding to OmniRoute…"
+  },
+  "popup_error": {
+    "message": "Error"
+  },
+  "popup_addedProbing": {
+    "message": "✓ Added$1 · checking for real…"
+  },
+  "popup_probingLive": {
+    "message": "⏳ Checking for real…"
+  },
+  "popup_check": {
+    "message": "Check"
+  },
+  "popup_update": {
+    "message": "🔄 Update"
+  },
+  "popup_predictNew": {
+    "message": "will create a new connection"
+  },
+  "popup_nothingFound": {
+    "message": "Nothing found."
+  },
+  "popup_add": {
+    "message": "Add"
+  },
+  "popup_cancel": {
+    "message": "Cancel"
+  },
+  "popup_copy": {
+    "message": "Copy"
+  },
+  "popup_copied": {
+    "message": "✓ Copied"
+  },
+  "popup_retry": {
+    "message": "Try again"
+  },
+  "popup_footerDown": {
+    "message": "⚠ 127.0.0.1:20128 isn't running"
+  },
+  "popup_footerUnreadable": {
+    "message": "⚠ couldn't read the connections — open the dashboard and sign in"
+  },
+  "popup_footerLogin": {
+    "message": "Online · 127.0.0.1:20128 — sign in on the dashboard"
+  },
+  "popup_srvDown": {
+    "message": "127.0.0.1:20128 — unreachable"
+  },
+  "popup_noName": {
+    "message": "(unnamed)"
+  },
+  "popup_rename": {
+    "message": "Rename"
+  },
+  "popup_renameTitle": {
+    "message": "Rename this connection"
+  },
+  "popup_saveName": {
+    "message": "Save the name"
+  },
+  "popup_enable": {
+    "message": "Enable"
+  },
+  "popup_disable": {
+    "message": "Disable"
+  },
+  "popup_toggleTitle": {
+    "message": "Route to this connection or not (doesn't delete it)"
+  },
+  "popup_delete": {
+    "message": "Delete"
+  },
+  "popup_deleteAll": {
+    "message": "Delete all"
+  },
+  "popup_deleteConfirm": {
+    "message": "Really delete?"
+  },
+  "popup_deleteAllConfirm": {
+    "message": "Delete all $1?"
+  },
+  "popup_deleting": {
+    "message": "Deleting…"
+  },
+  "popup_manageAll": {
+    "message": "⚙ All connections"
+  },
+  "popup_stateOff": {
+    "message": "⏸ disabled"
+  },
+  "popup_stateBad": {
+    "message": "🔴 not working"
+  },
+  "popup_stateOk": {
+    "message": "🟢 active"
+  },
+  "popup_noConns": {
+    "message": "no connections"
+  },
+  "popup_probingN": {
+    "message": "Checking $1/$2…"
+  },
+  "popup_probingWith": {
+    "message": "Checking $1/$2 · $3"
+  },
+  "popup_probeEta": {
+    "message": "~$1s"
+  },
+  "popup_probeAllDone": {
+    "message": "Done: 🟢 $1  ·  🔴 $2  ·  ⚪ $3"
+  },
+  "web_searchPh": {
+    "message": "Search web providers…"
+  },
+  "web_searchLabel": {
+    "message": "Search web providers"
+  },
+  "web_allTitle": {
+    "message": "All web providers"
+  },
+  "web_allHint": {
+    "message": "Open the site, sign in and send any message — the session shows up at the top."
+  },
+  "web_thisTab": {
+    "message": "this tab"
+  },
+  "web_capturedN": {
+    "message": "Captured: $1 cookies · $2"
+  },
+  "web_captureStale": {
+    "message": "may be stale, capture it again"
+  },
+  "web_accountNamePh": {
+    "message": "Account name"
+  },
+  "web_dismissTitle": {
+    "message": "Drop this captured session (leaves OmniRoute alone)"
+  },
+  "web_dismissLabel": {
+    "message": "Drop the captured session"
+  },
+  "web_addAccount": {
+    "message": "➕ Add account"
+  },
+  "web_send": {
+    "message": "Send to OmniRoute"
+  },
+  "web_predictUpd": {
+    "message": "will overwrite the existing connection with fresh cookies"
+  },
+  "web_readyTitle": {
+    "message": "Ready to send"
+  },
+  "web_sendAll": {
+    "message": "Send all ($1)"
+  },
+  "web_sendAllSplit": {
+    "message": "$1 will update · $2 will be created"
+  },
+  "web_fixDead": {
+    "message": "🔄 Refresh only the broken ones ($1)"
+  },
+  "web_clearAll": {
+    "message": "✕ Drop all captures ($1)"
+  },
+  "web_emptyTitle": {
+    "message": "No captured sessions yet."
+  },
+  "web_emptyHint": {
+    "message": "1) open a provider's site below → 2) sign in → 3) send any message — the session shows up here."
+  },
+  "web_openSite": {
+    "message": "Open $1"
+  },
+  "web_sending": {
+    "message": "Sending $1/$2…"
+  },
+  "web_sendDone": {
+    "message": "Done: $1/$2"
+  },
+  "web_attention": {
+    "message": "⚠ Need attention"
+  },
+  "web_loginAll": {
+    "message": "Sign in to all again"
+  },
+  "web_loginAllTitle": {
+    "message": "Open the login page of every failing provider"
+  },
+  "web_loginAgain": {
+    "message": "Sign in again"
+  },
+  "web_loginAgainTitle": {
+    "message": "Open the provider's login page, sign in and send a message — the session is re-captured"
+  },
+  "key_aistudioFound": {
+    "message": "Found an AI Studio key on the page"
+  },
+  "key_aistudioAdd": {
+    "message": "Add as Gemini"
+  },
+  "key_aistudioDismiss": {
+    "message": "Hide"
+  },
+  "key_searchPh": {
+    "message": "Search providers (170+)…"
+  },
+  "key_searchLabel": {
+    "message": "Search API providers"
+  },
+  "key_hint": {
+    "message": "Pick a provider → paste the key. The key only goes to your local OmniRoute (:20128); the extension never stores it."
+  },
+  "key_getKey": {
+    "message": "🔑 Open $1 to get a key ↗"
+  },
+  "key_namePh": {
+    "message": "Account name (optional)"
+  },
+  "key_keyPh": {
+    "message": "Paste the API key"
+  },
+  "key_required": {
+    "message": "(required)"
+  },
+  "key_optional": {
+    "message": "(optional)"
+  },
+  "key_advBasePh": {
+    "message": "Custom endpoint (base URL, optional)"
+  },
+  "key_advBaseTitle": {
+    "message": "OpenAI-compatible endpoint — for proxies / self-hosted"
+  },
+  "key_advTagPh": {
+    "message": "Routing tag (optional)"
+  },
+  "key_advToggle": {
+    "message": "⚙ Advanced"
+  },
+  "key_bulkPh": {
+    "message": "Several keys — one per line"
+  },
+  "key_bulkOn": {
+    "message": "＋ Several keys"
+  },
+  "key_bulkOff": {
+    "message": "— Single key"
+  },
+  "key_predictUpd": {
+    "message": "will overwrite the existing connection"
+  },
+  "key_pasteKeys": {
+    "message": "Paste the keys (one per line)"
+  },
+  "key_pasteKey": {
+    "message": "Paste a key"
+  },
+  "key_fillField": {
+    "message": "Fill in: $1"
+  },
+  "key_emptyHint": {
+    "message": "Start typing a provider name — $1 available."
+  },
+  "key_withConns": {
+    "message": "With connections"
+  },
+  "key_restHint": {
+    "message": "The rest — via the search above ($1 in total)."
+  },
+  "oauth_searchPh": {
+    "message": "Search OAuth providers…"
+  },
+  "oauth_searchLabel": {
+    "message": "Search OAuth providers"
+  },
+  "oauth_hint": {
+    "message": "Everything connects right here: device code, browser login or token paste — depending on the provider."
+  },
+  "oauth_kindDevice": {
+    "message": "device code"
+  },
+  "oauth_kindRedirect": {
+    "message": "browser login"
+  },
+  "oauth_kindImport": {
+    "message": "token paste"
+  },
+  "oauth_grpDevice": {
+    "message": "Device code"
+  },
+  "oauth_grpRedirect": {
+    "message": "Browser login"
+  },
+  "oauth_grpImport": {
+    "message": "Token paste"
+  },
+  "oauth_zipImport": {
+    "message": "📦 Import a .zip (many accounts)"
+  },
+  "oauth_zipReading": {
+    "message": "⏳ Reading the archive…"
+  },
+  "oauth_zipReadFail": {
+    "message": "Couldn't read the file"
+  },
+  "oauth_zipImporting": {
+    "message": "⏳ Importing…"
+  },
+  "oauth_zipDone": {
+    "message": "🟢 Imported: $1 account(s)"
+  },
+  "oauth_broken": {
+    "message": "⚠ Unavailable — OmniRoute server error"
+  },
+  "oauth_openAuth": {
+    "message": "Open the authorization page ↗"
+  },
+  "oauth_devicePending": {
+    "message": "⏳ Enter EXACTLY this code and confirm — checking every $1s"
+  },
+  "oauth_deviceExpiry": {
+    "message": "code valid for ~$1 more min"
+  },
+  "oauth_openLogin": {
+    "message": "Open the login page ↗"
+  },
+  "oauth_redirectPending": {
+    "message": "⏳ Finish signing in in the browser — waiting…"
+  },
+  "oauth_whereToken": {
+    "message": "🔑 Where to get a token ↗"
+  },
+  "oauth_tokenPh": {
+    "message": "Paste a token or cred blob"
+  },
+  "oauth_import": {
+    "message": "Import"
+  },
+  "oauth_findLocal": {
+    "message": "🔍 Find locally"
+  },
+  "oauth_findLocalTitle": {
+    "message": "Import credentials from the provider's local CLI (if installed)"
+  },
+  "oauth_pasteToken": {
+    "message": "Paste a token"
+  },
+  "oauth_connectBrowser": {
+    "message": "Connect (browser login)"
+  },
+  "oauth_inDashboard": {
+    "message": "or on the dashboard ↗"
+  },
+  "oauth_inDashboardTitle": {
+    "message": "Open the flow on the OmniRoute dashboard"
+  },
+  "oauth_connect": {
+    "message": "Connect"
+  },
+  "oauth_reconnect": {
+    "message": "Reconnect"
+  },
+  "set_sweep": {
+    "message": "Background health check"
+  },
+  "set_sweepInterval": {
+    "message": "Check interval"
+  },
+  "set_min5": {
+    "message": "5 min"
+  },
+  "set_min15": {
+    "message": "15 min"
+  },
+  "set_min30": {
+    "message": "30 min"
+  },
+  "set_min60": {
+    "message": "60 min"
+  },
+  "set_notify": {
+    "message": "Notify me when something breaks"
+  },
+  "set_sweepSkip": {
+    "message": "Skip in the background"
+  },
+  "set_sweepSkipHint": {
+    "message": "Every background cycle spends one real request per provider — that's money on paid tiers and rate limits (kiro answers 429). Ticked ones are skipped; the “Check all” button checks them anyway."
+  },
+  "set_persist": {
+    "message": "Keep sessions on disk (restore them at startup)"
+  },
+  "set_persistHint": {
+    "message": "Captured web sessions survive a browser restart and are auto-restored at startup. The cookies/tokens then land on your browser profile's disk — turn this off if you want them in memory only."
+  },
+  "set_theme": {
+    "message": "Theme"
+  },
+  "set_themeAuto": {
+    "message": "System"
+  },
+  "set_themeLight": {
+    "message": "Light"
+  },
+  "set_themeDark": {
+    "message": "Dark"
+  },
+  "set_sweepNow": {
+    "message": "🩺 Check every connection now"
+  },
+  "set_export": {
+    "message": "⬇ Download the connection list (backup)"
+  },
+  "set_clearProbes": {
+    "message": "🧹 Reset check results"
+  },
+  "set_shortcut": {
+    "message": "Open the popup:"
+  },
+  "set_summaryConns": {
+    "message": "🔗 $1 connections across $2 providers"
+  },
+  "set_summaryCatalog": {
+    "message": "Catalog: web $1 · apikey $2 · oauth $3"
+  },
+  "set_lastSweep": {
+    "message": "Last check: $1"
+  },
+  "set_noSweep": {
+    "message": "The background check hasn't run yet."
+  },
+  "set_noRecovery": {
+    "message": "Session restore at startup hasn't run yet."
+  },
+  "set_recoveryUnreachable": {
+    "message": "↻ OmniRoute was unreachable at startup — nothing restored · $1"
+  },
+  "set_recoveryDone": {
+    "message": "↻ Restored at startup: $1 · $2"
+  },
+  "set_recoveryPurged": {
+    "message": "expired ones deleted: $1"
+  },
+  "set_skipEmpty": {
+    "message": "Nothing to skip yet — no connections."
+  },
+  "set_skipOffTitle": {
+    "message": "Skipped in the background — click to check it again"
+  },
+  "set_skipOnTitle": {
+    "message": "Checked in the background — click to skip it"
+  },
+  "set_sweeping": {
+    "message": "Checking…"
+  },
+  "set_sweepBusy": {
+    "message": "A check is already running…"
+  },
+  "bg_injectEmpty": {
+    "message": "The injection returned nothing"
+  },
+  "bg_tabOpenFail": {
+    "message": "Couldn't open an OmniRoute tab: $1"
+  },
+  "bg_tabOpenFail2": {
+    "message": "Couldn't open an OmniRoute tab (:20128)."
+  },
+  "bg_injectFail": {
+    "message": "Injection failed: $1"
+  },
+  "bg_timeout": {
+    "message": "OmniRoute isn't responding (timeout)."
+  },
+  "bg_notOmni": {
+    "message": "Whatever is on :20128 doesn't look like OmniRoute — start OmniRoute and sign in to the dashboard."
+  },
+  "bg_needLogin": {
+    "message": "OmniRoute: sign-in required (open the dashboard and sign in)."
+  },
+  "bg_unknownProvider": {
+    "message": "Unknown provider"
+  },
+  "bg_noCapture": {
+    "message": "No captured session — open the site and send a message."
+  },
+  "bg_noCreds": {
+    "message": "Couldn't extract credentials from the session."
+  },
+  "bg_noProvider": {
+    "message": "No provider selected"
+  },
+  "bg_emptyKey": {
+    "message": "Empty key"
+  },
+  "bg_noValidKeys": {
+    "message": "No valid keys (one per line, 8+ characters)"
+  },
+  "bg_noData": {
+    "message": "no data"
+  },
+  "bg_noIdData": {
+    "message": "Missing id/data"
+  },
+  "bg_noModelsForProbe": {
+    "message": "the provider has no models to probe"
+  },
+  "bg_probeTimeout": {
+    "message": "timeout / the probe didn't go through: $1"
+  },
+  "bg_noAnswer": {
+    "message": "no response"
+  },
+  "bg_answered200": {
+    "message": "responded (200)"
+  },
+  "bg_rateLimited": {
+    "message": "rate limited (429) — probably alive, just throttled"
+  },
+  "bg_provider5xx": {
+    "message": "5xx from the provider (temporary?): $1"
+  },
+  "bg_probeFailed": {
+    "message": "the probe failed"
+  },
+  "bg_probeAbort": {
+    "message": "timeout (>30s) — the provider is slow to answer"
+  },
+  "bg_noModelsAccess": {
+    "message": "no access to /v1/models"
+  },
+  "bg_noModels": {
+    "message": "the provider has no models"
+  },
+  "bg_notifyTitle": {
+    "message": "OmniRoute: a connection stopped working"
+  },
+  "bg_notDeviceFlow": {
+    "message": "Not a device-flow provider"
+  },
+  "bg_providerUnavailable": {
+    "message": "Provider unavailable (OmniRoute server error)"
+  },
+  "bg_notRedirect": {
+    "message": "Not a redirect provider"
+  },
+  "bg_noBrowserLogin": {
+    "message": "Browser login unavailable — use the dashboard"
+  },
+  "bg_connReadFail": {
+    "message": "Couldn't read the current connections — try again."
+  },
+  "bg_emptyToken": {
+    "message": "Empty token"
+  },
+  "bg_tokenShort": {
+    "message": "The token is too short — check that you copied all of it"
+  },
+  "bg_omniUnreachable": {
+    "message": "Couldn't reach OmniRoute: $1"
+  },
+  "bg_noLocalCreds": {
+    "message": "No local credentials found — paste a token by hand."
+  },
+  "bg_noZipSupport": {
+    "message": "This provider doesn't support ZIP import"
+  },
+  "bg_noFile": {
+    "message": "No file selected"
+  },
+  "bg_zipExtractFail": {
+    "message": "Couldn't extract the ZIP"
+  },
+  "bg_zipEmpty": {
+    "message": "The archive contains no accounts"
+  },
+  "bg_codeExpired": {
+    "message": "The code expired — start over."
+  },
+  "bg_connected": {
+    "message": "Connected."
+  },
+  "cat_other": {
+    "message": "Other"
+  },
+  "hint_zed": {
+    "message": "Zed → Settings → copy the token from your OS keychain"
+  },
+  "hint_cursor": {
+    "message": "Cursor → Settings → copy the session token"
+  },
+  "hint_grokCli": {
+    "message": "grok-cli: run `grok auth`, then copy the token"
+  },
+  "hint_trae": {
+    "message": "Trae → sign out and back in, then copy the token from devtools/config"
+  },
+  "perm_needed": {
+    "message": "Firefox: grant the extension access to 127.0.0.1:20128 — otherwise it can't see the server."
+  },
+  "perm_grant": {
+    "message": "Grant access"
+  }
+}

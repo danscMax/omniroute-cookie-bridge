@@ -9,6 +9,22 @@ import vm from "node:vm";
 
 export const EXT = dirname(fileURLToPath(import.meta.url));
 
+// chrome.i18n, backed by the REAL default locale (_locales/ru) rather than an echo stub: the popup's
+// visible text IS its behaviour, so a test asserting on a button label must see the shipped string.
+// Mirrors getMessage's contract: unknown key → "", and $1..$9 replaced from `subs`.
+export function i18nStub(locale = "ru") {
+  const msgs = JSON.parse(readFileSync(join(EXT, "_locales", locale, "messages.json"), "utf8"));
+  return {
+    getMessage: (k, subs) => {
+      if (k === "@@ui_locale") return locale;
+      const m = msgs[k] && msgs[k].message;
+      if (!m) return "";
+      const a = subs == null ? [] : Array.isArray(subs) ? subs : [subs];
+      return m.replace(/\$([1-9])/g, (_, i) => (a[i - 1] == null ? "" : a[i - 1]));
+    },
+  };
+}
+
 // One chrome.storage area. Mirrors the real dual API: get/set/remove work as promises AND callbacks
 // (background.js uses `SEC.set({...}, updateBadge)` callback-style and `await LOC.get(null)` promise-style).
 export function area(seed = {}) {
@@ -45,6 +61,7 @@ export function makeChrome(overrides = {}) {
   const listeners = { webRequest: [], startup: [], message: [], alarm: [] };
   const base = {
     _listeners: listeners,
+    i18n: i18nStub(),
     storage: { local: area(), session: area() },
     runtime: {
       sendMessage: () => Promise.resolve({ ok: true }),

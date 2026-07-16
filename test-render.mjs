@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { area } from "./test-harness.mjs"; // shared in-memory chrome.storage — one impl for both suites
+import { area, i18nStub } from "./test-harness.mjs"; // shared in-memory chrome.storage + i18n — one impl for both suites
 
 const EXT = dirname(fileURLToPath(import.meta.url));
 const { document } = parseHTML(readFileSync(join(EXT, "popup.html"), "utf8"));
@@ -22,12 +22,14 @@ const CANNED = {
 };
 const errors = [];
 const chrome = {
+  i18n: i18nStub(), // real ru strings — the assertions below read the labels the popup actually paints
   storage: { local: area(), session: area() },
   runtime: { sendMessage: (msg, cb) => { const r = CANNED[msg.action] || { ok: true }; if (cb) cb(r); return Promise.resolve(r); }, onMessage: { addListener: () => {} }, getURL: (x) => x, getManifest: () => ({ version: "dev" }) },
   tabs: { query: () => Promise.resolve([]), create: () => Promise.resolve({ id: 1 }), onUpdated: { addListener: () => {}, removeListener: () => {} } },
   action: { setBadgeText: () => {}, setBadgeBackgroundColor: () => {} },
   alarms: { create: () => {}, clear: () => {}, get: (n, cb) => cb(null), onAlarm: { addListener: () => {} } },
   notifications: { create: () => {} }, windows: { create: () => {} },
+  permissions: { contains: () => Promise.resolve(true), request: () => Promise.resolve(true) }, // granted → banner hidden (Chrome-like)
 };
 const sandbox = {
   document, chrome, console, navigator: { clipboard: { writeText: () => Promise.resolve() } }, location: { search: "" },
@@ -56,6 +58,18 @@ assert.ok(oauthCards >= 14, `oauth cards rendered (${oauthCards})`);
 assert.ok(webChips >= 18, `web chips rendered (${webChips})`);
 for (const id of ["settingsBtn", "exportBtn", "clearProbesBtn", "setTheme", "webProblems"]) assert.ok(document.querySelector("#" + id), `#${id} present`);
 
+// The i18n pass must FILL the static markup, not blank it. `t()` returning undefined (a bad key lookup)
+// silently empties every label — the exact failure the key-fallback exists to prevent, and one no
+// assertion above would notice because they only count elements.
+const i18nEls = [...document.querySelectorAll("[data-i18n]")];
+assert.ok(i18nEls.length >= 20, `static markup carries i18n keys (${i18nEls.length})`);
+const blank = i18nEls.filter((e) => !String(e.textContent || "").trim()).map((e) => e.getAttribute("data-i18n"));
+assert.deepEqual(blank, [], `every [data-i18n] element rendered text: ${blank.join(", ")}`);
+assert.equal(document.querySelector("#exportBtn").textContent, "⬇ Скачать список соединений (бэкап)", "static label reads the shipped ru string");
+assert.equal(document.querySelector("#settingsBtn").title, "Настройки", "[data-i18n-title] fills the attribute");
+assert.equal(document.querySelector("#webSearch").placeholder, "Поиск веб-провайдера…", "[data-i18n-placeholder] fills the attribute");
+assert.equal(document.querySelector("#webSearch").getAttribute("aria-label"), "Поиск веб-провайдера", "[data-i18n-label] fills aria-label");
+
 // Attention band populated from the fixture's broken connection (dead1) — the honest-signal path.
 assert.ok(document.querySelector("#webProblems .prob"), "attention band lists the broken connection");
 
@@ -80,5 +94,8 @@ const skipChips = [...document.querySelectorAll("#sweepSkipChips .chip")].map((c
 assert.equal(skipChips.length, 2, `a sweep opt-out chip per connected provider (got ${JSON.stringify(skipChips)})`);
 assert.ok(document.querySelector("#setPersist"), "#setPersist toggle present");
 assert.ok(document.querySelector("#lastRecovery"), "#lastRecovery line present");
+// Firefox host-permission prompt: the grant button exists, and with permission granted (stub) the banner is hidden.
+assert.ok(document.querySelector("#grantBtn"), "#grantBtn present");
+assert.ok(document.querySelector("#permBanner").classList.contains("hide"), "permission banner hidden when access is granted");
 
 console.log(`render OK — 0 JS errors, oauth cards=${oauthCards}, web chips=${webChips}, manager rows=${rows.length}, sweep-skip chips=${skipChips.length}, key controls present`);

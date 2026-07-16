@@ -2,7 +2,24 @@
 // 201 = "Добавлено" (really in OmniRoute); a REAL probe = "работает / не работает / не проверено";
 // live connection counts (read from /api/providers) show what's actually there right now.
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-function ago(ms) { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return s + "с назад"; const m = Math.round(s / 60); if (m < 60) return m + "мин назад"; return Math.round(m / 60) + "ч назад"; }
+// i18n lookup. Falls back to the KEY itself, never "": chrome.i18n.getMessage returns an empty string
+// for a missing key, which turns a button into a silent blank instead of a visible bug.
+const t = (k, subs) => chrome.i18n.getMessage(k, subs) || k;
+// One pass over the static markup: [data-i18n] → text, [data-i18n-title|placeholder|label] → attribute.
+// getAttribute, not dataset: linkedom (the render smoke's DOM) returns null for `dataset.i18n` while
+// honouring the suffixed ones, which blanked every static label under test while looking fine in Chrome.
+// Same semantics in a real browser, and it keeps the smoke able to see what a user sees.
+function applyI18n() {
+  const at = (e, a) => t(e.getAttribute(a));
+  for (const e of document.querySelectorAll("[data-i18n]")) e.textContent = at(e, "data-i18n");
+  for (const e of document.querySelectorAll("[data-i18n-title]")) e.title = at(e, "data-i18n-title");
+  for (const e of document.querySelectorAll("[data-i18n-placeholder]")) e.placeholder = at(e, "data-i18n-placeholder");
+  for (const e of document.querySelectorAll("[data-i18n-label]")) e.setAttribute("aria-label", at(e, "data-i18n-label"));
+  const loc = chrome.i18n.getMessage("@@ui_locale"); // "ru", "en_US" → the <html lang> screen readers read
+  if (loc) document.documentElement.lang = loc.replace("_", "-");
+}
+applyI18n();
+function ago(ms) { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return t("popup_agoSec", [String(s)]); const m = Math.round(s / 60); if (m < 60) return t("popup_agoMin", [String(m)]); return t("popup_agoHour", [String(Math.round(m / 60))]); }
 const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
 // Where to send someone whose session died. The catalog carries a real login URL per web provider
 // (e.g. chatgpt.com/auth/login) — it was generated for all 23 and used by nothing; the homepage is one
@@ -10,6 +27,21 @@ const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
 const loginTarget = (w) => (w && (w.loginUrl || w.site)) || "";
 // One label lookup across the three registries (a slug lives in exactly one of them).
 const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || OMNI_APIKEY_MAP[slug] || {}).label) || slug;
+
+// Firefox MV3 grants host_permissions on an ad-hoc basis, and NOT on an update that changed the set —
+// so access to 127.0.0.1 can be missing even though the manifest declares it, and executeScript into the
+// dashboard tab then fails with "Missing host permission for the tab". Chrome auto-grants, so contains()
+// is true there and the banner never shows. permissions.request() must run from a user gesture (the
+// button), per the MDN permissions API.
+const HOST_ORIGINS = ["http://127.0.0.1:20128/*"];
+async function hasHostAccess() {
+  try { return await chrome.permissions.contains({ origins: HOST_ORIGINS }); } catch { return true; } // no permissions API → assume ok
+}
+async function refreshHostBanner() {
+  const ok = await hasHostAccess();
+  $("permBanner").classList.toggle("hide", ok);
+  return ok;
+}
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
@@ -60,7 +92,7 @@ document.addEventListener("keydown", (e) => {
 function connLine(slug) {
   const c = conns[slug];
   if (!c || !c.total) return null;
-  const parts = [`🔗 В OmniRoute: ${c.total}`];
+  const parts = [t("popup_inOmni", [String(c.total)])];
   if (c.good) parts.push(`🟢 ${c.good}`);
   if (c.bad) parts.push(`🔴 ${c.bad}`);
   const div = el("div", "conns", parts.join("  ·  "));
@@ -71,21 +103,21 @@ const PROBE_TTL = 10 * 60 * 1000; // a verdict older than 10 min is "was", not "
 function showProbe(resEl, id, p, added) {
   if (!p) { resEl.className = "res"; return; }
   const idt = id ? ` (${id.slice(0, 8)}…)` : "";
-  const pre = added ? "Добавлено" + idt : "Проверка";
+  const pre = added ? t("popup_added") + idt : t("popup_probe");
   const stale = p.at && (Date.now() - p.at > PROBE_TTL);
-  const age = stale ? ` · проверено ${ago(p.at)}` : "";
+  const age = stale ? " · " + t("popup_checkedAgo", [ago(p.at)]) : "";
   // A stale green verdict is demoted to neutral ⚪ (we no longer vouch it's live); red/unknown keep their icon + age.
-  if (p.alive === true) setRes(resEl, stale ? "mut" : "ok", stale ? `⚪ ${pre} — работало${age}` : `🟢 ${pre} — работает · ${p.detail || "200"}`);
-  else if (p.alive === false) setRes(resEl, "bad", `🔴 ${pre}: ${p.detail}${age}`);
-  else setRes(resEl, "mut", `⚪ ${pre} — не проверить: ${(p && p.detail) || "нет ответа"}`);
+  if (p.alive === true) setRes(resEl, stale ? "mut" : "ok", stale ? `⚪ ${t("popup_probeWorked", [pre])}${age}` : `🟢 ${t("popup_probeWorks", [pre, p.detail || "200"])}`);
+  else if (p.alive === false) setRes(resEl, "bad", `🔴 ${t("popup_probeFailed", [pre, String(p.detail)])}${age}`);
+  else setRes(resEl, "mut", `⚪ ${t("popup_probeUnknown", [pre, (p && p.detail) || t("popup_noAnswer")])}`);
 }
 // honest add → probe flow (shared by web + apikey)
 async function addAndProbe(resEl, doAdd, probeBtn) {
-  if (!serverOnline) { setRes(resEl, "bad", "⚠ OmniRoute :20128 недоступен"); return null; }
-  setRes(resEl, "pend", "⏳ Добавляю в OmniRoute…");
+  if (!serverOnline) { setRes(resEl, "bad", "⚠ " + t("popup_omniDown")); return null; }
+  setRes(resEl, "pend", t("popup_adding"));
   const r = await doAdd();
-  if (!r || !r.ok) { setRes(resEl, "bad", "🔴 " + ((r && r.error) || "Ошибка")); return r; }
-  setRes(resEl, "pend", "✓ Добавлено" + (r.id ? ` (${r.id.slice(0, 8)}…)` : "") + " · проверяю живьём…");
+  if (!r || !r.ok) { setRes(resEl, "bad", "🔴 " + ((r && r.error) || t("popup_error"))); return r; }
+  setRes(resEl, "pend", t("popup_addedProbing", [r.id ? ` (${r.id.slice(0, 8)}…)` : ""]));
   const p = await msg({ action: "probe", slug: r.slug });
   probes[r.slug] = { ...p, at: Date.now() };
   showProbe(resEl, r.id, p, true);
@@ -95,7 +127,7 @@ async function addAndProbe(resEl, doAdd, probeBtn) {
 }
 async function reprobe(resEl, slug, id, btn) {
   if (btn) btn.disabled = true;
-  setRes(resEl, "pend", "⏳ Проверяю живьём…");
+  setRes(resEl, "pend", t("popup_probingLive"));
   const p = await msg({ action: "probe", slug });
   probes[slug] = { ...p, at: Date.now() };
   showProbe(resEl, id, p, false);
@@ -112,24 +144,24 @@ function webCard(p, cap) {
   const card = el("div", "card" + (p.key === activeProviderKey ? " live" : ""));
   const h = el("div", "card-h");
   h.append(el("span", "ico", "🍪"), el("b", null, p.label), el("span", "tag", p.slug));
-  if (p.key === activeProviderKey) h.append(el("span", "tag", "эта вкладка"));
+  if (p.key === activeProviderKey) h.append(el("span", "tag", t("web_thisTab")));
   const cc = conns[p.slug];
   if (cc && cc.bad) { card.classList.add("bad"); h.append(el("span", "warnbadge", `⚠ ${cc.bad}`)); }
   card.append(h);
   // Web sessions rot in hours — warn (amber) once a capture is old enough to likely be dead.
   const capStale = Date.now() - cap.at > 6 * 60 * 60 * 1000;
   card.append(el("div", "sub" + (capStale ? " stale" : ""),
-    `${capStale ? "⚠️" : "✅"} Захвачено: ${cap.cookieCount} cookies · ${ago(cap.at)}${capStale ? " — возможно устарело, перезахвати" : ""}`));
+    `${capStale ? "⚠️" : "✅"} ${t("web_capturedN", [String(cap.cookieCount), ago(cap.at)])}${capStale ? " — " + t("web_captureStale") : ""}`));
   const cl = connLine(p.slug); if (cl) card.append(cl);
-  const input = el("input"); input.type = "text"; input.value = p.label; input.placeholder = "Имя аккаунта";
+  const input = el("input"); input.type = "text"; input.value = p.label; input.placeholder = t("web_accountNamePh");
   card.append(input);
   const predict = el("div", "predict"); card.append(predict);
   const actions = el("div", "actions");
   const send = el("button", "grow sm", "");
-  const probe = el("button", "ghost sm" + (probes[p.slug] ? "" : " hide"), "Проверить");
+  const probe = el("button", "ghost sm" + (probes[p.slug] ? "" : " hide"), t("popup_check"));
   const dismiss = el("button", "ghost sm", "✕");
-  dismiss.title = "Убрать эту захваченную сессию (не трогает OmniRoute)";
-  dismiss.setAttribute("aria-label", "Убрать захваченную сессию");
+  dismiss.title = t("web_dismissTitle");
+  dismiss.setAttribute("aria-label", t("web_dismissLabel"));
   dismiss.onclick = async () => { await msg({ action: "clear", providerKey: p.key }); await refresh(); };
   actions.append(send, probe, dismiss); card.append(actions);
   const res = el("div", "res"); card.append(res);
@@ -137,10 +169,10 @@ function webCard(p, cap) {
   function sync() {
     const upd = willUpdate(p.slug, input.value.trim() || p.label, cap.accountId);
     // Button carries the single "Обновить"; the hint explains — no duplicated word.
-    send.textContent = upd ? "🔄 Обновить" : (hasOther ? "➕ Добавить аккаунт" : "Отправить в OmniRoute");
+    send.textContent = upd ? t("popup_update") : (hasOther ? t("web_addAccount") : t("web_send"));
     send.classList.toggle("upd", upd);
     predict.className = "predict " + (upd ? "upd" : "new");
-    predict.textContent = upd ? "перезапишет существующее соединение свежими куками" : "заведёт новое соединение";
+    predict.textContent = upd ? t("web_predictUpd") : t("popup_predictNew");
   }
   sync();
   input.addEventListener("input", sync);
@@ -164,11 +196,11 @@ function renderWeb() {
     .sort((a, b) => (a.key === activeProviderKey ? -1 : b.key === activeProviderKey ? 1 : 0));
   $("bWeb").textContent = String(OMNI_WEB.filter((p) => caps[p.key]).length);
   if (capd.length) {
-    const t = el("div", "grp-title", "Готово к отправке"); t.append(el("span", "n", String(capd.length))); cap.append(t);
+    const ttl = el("div", "grp-title", t("web_readyTitle")); ttl.append(el("span", "n", String(capd.length))); cap.append(ttl);
     if (capd.length > 1) {
       // Predict how many of the batch will UPDATE an existing connection vs CREATE a new one.
       const upd = capd.filter((p) => willUpdate(p.slug, p.label, caps[p.key].accountId)).length;
-      const all = el("button", "bulk", `Отправить все (${capd.length})` + (upd ? ` — ${upd} обновит · ${capd.length - upd} создаст` : ""));
+      const all = el("button", "bulk", t("web_sendAll", [String(capd.length)]) + (upd ? " — " + t("web_sendAllSplit", [String(upd), String(capd.length - upd)]) : ""));
       all.addEventListener("click", () => sendAll(capd, all));
       cap.append(all);
     }
@@ -176,33 +208,33 @@ function renderWeb() {
     // fast recovery without re-pushing every healthy session.
     const dead = capd.filter((p) => (conns[p.slug] && conns[p.slug].bad) || (probes[p.slug] && probes[p.slug].alive === false));
     if (dead.length) {
-      const fix = el("button", "bulk upd", `🔄 Обновить только упавшие (${dead.length})`);
+      const fix = el("button", "bulk upd", t("web_fixDead", [String(dead.length)]));
       fix.addEventListener("click", () => sendAll(dead, fix));
       cap.append(fix);
     }
     if (capd.length > 1) { // bulk-dismiss all captured sessions (doesn't touch OmniRoute)
-      const clearAll = el("button", "bulk ghost", `✕ Убрать все захваты (${capd.length})`);
+      const clearAll = el("button", "bulk ghost", t("web_clearAll", [String(capd.length)]));
       clearAll.addEventListener("click", async () => { clearAll.disabled = true; for (const p of capd) await msg({ action: "clear", providerKey: p.key }); await refresh(); });
       cap.append(clearAll);
     }
     for (const p of capd) cap.append(webCard(p, caps[p.key]));
   } else if (!Object.values(caps).some(Boolean)) {
     const e = el("div", "empty");
-    e.append(el("b", null, "Захваченных сессий пока нет.")); e.append(document.createElement("br"));
-    e.append(document.createTextNode("1) открой сайт провайдера ниже → 2) залогинься → 3) отправь любое сообщение — сессия появится здесь."));
+    e.append(el("b", null, t("web_emptyTitle"))); e.append(document.createElement("br"));
+    e.append(document.createTextNode(t("web_emptyHint")));
     cap.append(e);
   }
   const chips = $("webChips"); chips.textContent = "";
   // Providers with a live connection float to the top of the chip list (the ones you actually use).
   const all = OMNI_WEB.filter(match).sort((a, b) => (conns[b.slug] && conns[b.slug].total ? 1 : 0) - (conns[a.slug] && conns[a.slug].total ? 1 : 0));
   $("webAllN").textContent = q ? `${all.length}/${OMNI_WEB.length}` : String(OMNI_WEB.length);
-  if (!all.length) chips.append(el("div", "empty", "Ничего не найдено."));
+  if (!all.length) chips.append(el("div", "empty", t("popup_nothingFound")));
   for (const p of all) {
     const chip = el("button", "chip" + (caps[p.key] ? " has" : "")); // <button> = focusable + Enter/Space
     if (caps[p.key]) chip.append(el("span", "g"));
     chip.append(document.createTextNode(p.label));
     const c = conns[p.slug]; if (c && c.total) chip.append(el("span", "cn", String(c.total)));
-    chip.title = "Открыть " + p.site;
+    chip.title = t("web_openSite", [p.site]);
     chip.addEventListener("click", () => chrome.tabs.create({ url: p.site }));
     chips.append(chip);
   }
@@ -211,11 +243,11 @@ async function sendAll(list, btn) {
   btn.disabled = true;
   let ok = 0;
   for (let i = 0; i < list.length; i++) {
-    btn.textContent = `Отправка ${i + 1}/${list.length}…`;
+    btn.textContent = t("web_sending", [String(i + 1), String(list.length)]);
     const r = await msg({ action: "send", providerKey: list[i].key, name: list[i].label });
     if (r && r.ok) ok++;
   }
-  btn.textContent = `Готово: ${ok}/${list.length}`;
+  btn.textContent = t("web_sendDone", [String(ok), String(list.length)]);
   await loadConnections();
   setTimeout(() => { btn.disabled = false; renderWeb(); }, 1200);
 }
@@ -229,47 +261,47 @@ let keyExpanded = null; // slug of the currently expanded api-key provider
 function keyForm(p) {
   const box = el("div", "keyform");
   if (p.get) {
-    const get = el("button", "ghost sm getkey", "🔑 Открыть " + hostOf(p.get) + " за ключом ↗");
+    const get = el("button", "ghost sm getkey", t("key_getKey", [hostOf(p.get)]));
     get.onclick = () => chrome.tabs.create({ url: p.get });
     box.append(get);
   }
-  const name = el("input"); name.type = "text"; name.placeholder = "Имя аккаунта (опц.)";
-  const key = el("input"); key.type = "password"; key.placeholder = "Вставь API-ключ"; key.autocomplete = "off";
+  const name = el("input"); name.type = "text"; name.placeholder = t("key_namePh");
+  const key = el("input"); key.type = "password"; key.placeholder = t("key_keyPh"); key.autocomplete = "off";
   box.append(name, key);
   // Provider-specific extra fields (e.g. `cx` for google-pse-search) → providerSpecificData on add.
   const extraInputs = {};
   if (p.extra) for (const ef of p.extra) {
-    const inp = el("input"); inp.type = "text"; inp.placeholder = ef.label + (ef.required ? " (обязательно)" : " (опц.)");
+    const inp = el("input"); inp.type = "text"; inp.placeholder = ef.label + " " + (ef.required ? t("key_required") : t("key_optional"));
     if (ef.hint) inp.title = ef.hint;
     extraInputs[ef.key] = inp; box.append(inp);
   }
   // Collapsible advanced add-options (parity with the dashboard): custom endpoint + routing tag.
   const advWrap = el("div", "hide");
-  const advBase = el("input"); advBase.type = "text"; advBase.placeholder = "Свой endpoint (base URL, опц.)"; advBase.title = "OpenAI-совместимый endpoint — для прокси/self-hosted";
-  const advTag = el("input"); advTag.type = "text"; advTag.placeholder = "Тег маршрутизации (опц.)";
+  const advBase = el("input"); advBase.type = "text"; advBase.placeholder = t("key_advBasePh"); advBase.title = t("key_advBaseTitle");
+  const advTag = el("input"); advTag.type = "text"; advTag.placeholder = t("key_advTagPh");
   advWrap.append(advBase, advTag);
-  const advToggle = el("button", "ghost sm", "⚙ Дополнительно");
+  const advToggle = el("button", "ghost sm", t("key_advToggle"));
   advToggle.onclick = () => advWrap.classList.toggle("hide");
   box.append(advToggle, advWrap);
   // Bulk mode: paste several keys of this provider (one per line) → /api/providers/bulk.
-  const bulkArea = el("textarea", "hide"); bulkArea.placeholder = "Несколько ключей — по одному на строку"; bulkArea.rows = 4;
-  const bulkToggle = el("button", "ghost sm", "＋ Несколько ключей");
-  bulkToggle.onclick = () => { const on = !bulkArea.classList.toggle("hide"); key.classList.toggle("hide", on); name.classList.toggle("hide", on); bulkToggle.textContent = on ? "— Один ключ" : "＋ Несколько ключей"; };
+  const bulkArea = el("textarea", "hide"); bulkArea.placeholder = t("key_bulkPh"); bulkArea.rows = 4;
+  const bulkToggle = el("button", "ghost sm", t("key_bulkOn"));
+  bulkToggle.onclick = () => { const on = !bulkArea.classList.toggle("hide"); key.classList.toggle("hide", on); name.classList.toggle("hide", on); bulkToggle.textContent = on ? t("key_bulkOff") : t("key_bulkOn"); };
   box.append(bulkToggle, bulkArea);
   const predict = el("div", "predict"); box.append(predict);
   const actions = el("div", "actions");
-  const add = el("button", "grow sm", "Добавить");
-  const probe = el("button", "ghost sm" + (probes[p.slug] ? "" : " hide"), "Проверить");
+  const add = el("button", "grow sm", t("popup_add"));
+  const probe = el("button", "ghost sm" + (probes[p.slug] ? "" : " hide"), t("popup_check"));
   actions.append(add, probe); box.append(actions);
   const res = el("div", "res"); box.append(res);
   if (probes[p.slug]) { showProbe(res, null, probes[p.slug], false); probe.onclick = () => reprobe(res, p.slug, null, probe); }
   function sync() {
     const k = key.value.trim();
-    if (!k) { predict.className = "predict"; predict.textContent = ""; add.textContent = "Добавить"; add.classList.remove("upd"); return; }
+    if (!k) { predict.className = "predict"; predict.textContent = ""; add.textContent = t("popup_add"); add.classList.remove("upd"); return; }
     const upd = willUpdate(p.slug, name.value.trim() || p.slug, omniAccountId(k));
     predict.className = "predict " + (upd ? "upd" : "new");
-    predict.textContent = upd ? "перезапишет существующее соединение" : "заведёт новое соединение";
-    add.textContent = upd ? "🔄 Обновить" : "Добавить"; add.classList.toggle("upd", upd);
+    predict.textContent = upd ? t("key_predictUpd") : t("popup_predictNew");
+    add.textContent = upd ? t("popup_update") : t("popup_add"); add.classList.toggle("upd", upd);
   }
   key.addEventListener("input", sync);
   name.addEventListener("input", sync);
@@ -277,7 +309,7 @@ function keyForm(p) {
   add.onclick = async () => {
     if (!bulkArea.classList.contains("hide")) { // bulk mode: several keys at once
       const keys = bulkArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
-      if (!keys.length) { setRes(res, "bad", "Вставь ключи (по одному на строку)"); return; }
+      if (!keys.length) { setRes(res, "bad", t("key_pasteKeys")); return; }
       add.disabled = true;
       const r = await addAndProbe(res, () => msg({ action: "bulkAddApiKey", slug: p.slug, keys }), probe);
       add.disabled = false;
@@ -285,11 +317,11 @@ function keyForm(p) {
       return;
     }
     const apiKey = key.value.trim();
-    if (!apiKey) { setRes(res, "bad", "Вставь ключ"); return; }
+    if (!apiKey) { setRes(res, "bad", t("key_pasteKey")); return; }
     const psd = {};
     for (const ef of (p.extra || [])) {
       const v = extraInputs[ef.key].value.trim();
-      if (ef.required && !v) { setRes(res, "bad", "Заполни: " + ef.label); return; }
+      if (ef.required && !v) { setRes(res, "bad", t("key_fillField", [ef.label])); return; }
       if (v) psd[ef.key] = v;
     }
     if (advBase.value.trim()) psd.baseUrl = advBase.value.trim(); // custom endpoint override
@@ -331,19 +363,19 @@ function renderKeyList() {
     const total = OMNI_APIKEY.length;
     $("bKey").textContent = String(total);
     const have = OMNI_APIKEY.filter((p) => conns[p.slug] && conns[p.slug].total);
-    if (!have.length) { box.append(el("div", "empty", `Начни печатать имя провайдера — доступно ${total}.`)); return; }
-    const t = el("div", "grp-title", "С соединениями"); t.append(el("span", "n", String(have.length))); box.append(t);
+    if (!have.length) { box.append(el("div", "empty", t("key_emptyHint", [String(total)]))); return; }
+    const ttl = el("div", "grp-title", t("key_withConns")); ttl.append(el("span", "n", String(have.length))); box.append(ttl);
     for (const p of have) box.append(keyRow(p));
-    box.append(el("p", "hint-sm", `Остальные — через поиск выше (${total} всего).`));
+    box.append(el("p", "hint-sm", t("key_restHint", [String(total)])));
     return;
   }
   const list = OMNI_APIKEY.filter(match);
   $("bKey").textContent = `${list.length}/${OMNI_APIKEY.length}`; // honest filtered count (mirrors the Web tab)
-  if (!list.length) { box.append(el("div", "empty", "Ничего не найдено.")); return; }
+  if (!list.length) { box.append(el("div", "empty", t("popup_nothingFound"))); return; }
   const byFam = {};
   for (const p of list) (byFam[p.family] = byFam[p.family] || []).push(p);
   for (const fam of Object.keys(byFam)) {
-    const t = el("div", "grp-title", fam); t.append(el("span", "n", String(byFam[fam].length))); box.append(t);
+    const ttl = el("div", "grp-title", fam); ttl.append(el("span", "n", String(byFam[fam].length))); box.append(ttl);
     for (const p of byFam[fam]) box.append(keyRow(p));
   }
 }
@@ -371,9 +403,9 @@ async function refreshAistudio() {
 let oauthStates = {};
 let oauthTimer = null;
 
-const KIND_TAG = { device: "device-код", redirect: "вход в браузере", import: "вставка токена" };
+const KIND_TAG = { device: t("oauth_kindDevice"), redirect: t("oauth_kindRedirect"), import: t("oauth_kindImport") };
 function oauthCancelBtn(o) {
-  const cancel = el("button", "ghost sm cancel", "Отмена");
+  const cancel = el("button", "ghost sm cancel", t("popup_cancel"));
   cancel.onclick = async () => { await msg({ action: "oauthCancel", provider: o.slug }); delete oauthStates[o.slug]; renderOauth(); };
   return cancel;
 }
@@ -382,18 +414,18 @@ function oauthCancelBtn(o) {
 function zipImportRow(o) {
   const wrap = el("div");
   const zres = el("div", "res");
-  const fileBtn = el("button", "ghost sm grow", "📦 Импорт .zip (много аккаунтов)");
+  const fileBtn = el("button", "ghost sm grow", t("oauth_zipImport"));
   const file = el("input", "hide"); file.type = "file"; file.accept = ".zip";
   fileBtn.onclick = () => file.click();
   file.onchange = async () => {
     const f = file.files && file.files[0]; if (!f) return;
-    setRes(zres, "pend", "⏳ Читаю архив…");
+    setRes(zres, "pend", t("oauth_zipReading"));
     const b64 = await new Promise((r) => { const rd = new FileReader(); rd.onload = () => r(String(rd.result).split(",")[1] || ""); rd.onerror = () => r(""); rd.readAsDataURL(f); });
-    if (!b64) { setRes(zres, "bad", "Не удалось прочитать файл"); return; }
-    setRes(zres, "pend", "⏳ Импортирую…");
+    if (!b64) { setRes(zres, "bad", t("oauth_zipReadFail")); return; }
+    setRes(zres, "pend", t("oauth_zipImporting"));
     const res = await msg({ action: "zipImport", provider: o.slug, b64 });
-    if (res && res.ok) { setRes(zres, "ok", `🟢 Импортировано: ${res.added} аккаунт(ов)`); loadConnections(); }
-    else setRes(zres, "bad", "🔴 " + ((res && res.error) || "Ошибка"));
+    if (res && res.ok) { setRes(zres, "ok", t("oauth_zipDone", [String(res.added)])); loadConnections(); }
+    else setRes(zres, "bad", "🔴 " + ((res && res.error) || t("popup_error")));
     file.value = "";
   };
   wrap.append(fileBtn, file, zres);
@@ -408,66 +440,66 @@ function oauthCard(o) {
   card.append(h);
   const cl = connLine(o.slug); if (cl) card.append(cl);
 
-  if (o.broken) { card.append(el("div", "res show bad", "⚠ Недоступен — ошибка сервера OmniRoute")); return card; }
+  if (o.broken) { card.append(el("div", "res show bad", t("oauth_broken"))); return card; }
 
   if (st && st.status === "pending") {
     if (o.kind === "device") {
       const box = el("div", "codebox");
       box.append(el("div", "code", st.userCode || "…"));
-      const copy = el("button", "ghost sm", "Копировать");
-      copy.onclick = () => navigator.clipboard.writeText(st.userCode).then(() => { copy.textContent = "✓ Скопировано"; setTimeout(() => (copy.textContent = "Копировать"), 1200); });
+      const copy = el("button", "ghost sm", t("popup_copy"));
+      copy.onclick = () => navigator.clipboard.writeText(st.userCode).then(() => { copy.textContent = t("popup_copied"); setTimeout(() => (copy.textContent = t("popup_copy")), 1200); });
       box.append(copy); card.append(box);
-      const open = el("button", "grow", "Открыть страницу авторизации ↗");
+      const open = el("button", "grow", t("oauth_openAuth"));
       open.onclick = () => { if (st.verifyUrl) chrome.tabs.create({ url: st.verifyUrl }); };
       card.append(open);
       const mins = st.expiresAt ? Math.max(0, Math.round((st.expiresAt - Date.now()) / 60000)) : 0;
-      card.append(el("div", "res show pend", `⏳ Введи ИМЕННО этот код и подтверди — проверяю каждые ${st.interval || 5}с${mins ? ` · код ещё ~${mins} мин` : ""}…`));
+      card.append(el("div", "res show pend", t("oauth_devicePending", [String(st.interval || 5)]) + (mins ? " · " + t("oauth_deviceExpiry", [String(mins)]) : "") + "…"));
     } else { // redirect: browser login, completed by OmniRoute's callback server
-      const open = el("button", "grow", "Открыть страницу входа ↗");
+      const open = el("button", "grow", t("oauth_openLogin"));
       open.onclick = () => { if (st.verifyUrl) chrome.tabs.create({ url: st.verifyUrl }); };
       card.append(open);
-      card.append(el("div", "res show pend", "⏳ Заверши вход в браузере — жду завершения…"));
+      card.append(el("div", "res show pend", t("oauth_redirectPending")));
     }
     card.append(oauthCancelBtn(o));
   } else if (st && st.status === "success") {
     const res = el("div", "res"); card.append(res);
     showProbe(res, st.connId, probes[o.slug], true);
   } else if (bad) {
-    card.append(el("div", "res show bad", "🔴 " + (st.detail || "Ошибка")));
-    const retry = el("button", "sm", "Повторить");
+    card.append(el("div", "res show bad", "🔴 " + (st.detail || t("popup_error"))));
+    const retry = el("button", "sm", t("popup_retry"));
     retry.onclick = () => { delete oauthStates[o.slug]; if (o.kind === "redirect") connectOauth(o.slug); else if (o.kind === "device") startOauth(o.slug); else renderOauth(); };
     card.append(retry);
   } else if (o.kind === "import") {
     if (o.tokenHint) {
-      if (/^https?:/.test(o.tokenHint)) { const g = el("button", "ghost sm getkey", "🔑 Где взять токен ↗"); g.onclick = () => chrome.tabs.create({ url: o.tokenHint }); card.append(g); }
+      if (/^https?:/.test(o.tokenHint)) { const g = el("button", "ghost sm getkey", t("oauth_whereToken")); g.onclick = () => chrome.tabs.create({ url: o.tokenHint }); card.append(g); }
       else card.append(el("div", "hint-sm", "💡 " + o.tokenHint));
     }
-    const input = el("input"); input.type = "password"; input.placeholder = "Вставь токен или cred-blob"; input.autocomplete = "off";
+    const input = el("input"); input.type = "password"; input.placeholder = t("oauth_tokenPh"); input.autocomplete = "off";
     card.append(input);
     const actions = el("div", "actions");
-    const imp = el("button", "grow sm", "Импортировать");
-    const probe = el("button", "ghost sm" + (probes[o.slug] ? "" : " hide"), "Проверить");
+    const imp = el("button", "grow sm", t("oauth_import"));
+    const probe = el("button", "ghost sm" + (probes[o.slug] ? "" : " hide"), t("popup_check"));
     actions.append(imp, probe); card.append(actions);
     const res = el("div", "res"); card.append(res);
     // Auto-detect local CLI creds first (only where OmniRoute has an auto-import endpoint); else manual paste.
     if (o.autoImport) {
-      const auto = el("button", "ghost sm grow", "🔍 Найти локально");
-      auto.title = "Импортировать креды из локального CLI провайдера (если установлен)";
+      const auto = el("button", "ghost sm grow", t("oauth_findLocal"));
+      auto.title = t("oauth_findLocalTitle");
       auto.onclick = async () => { auto.disabled = true; await autoImportOauth(o.slug, res, probe); auto.disabled = false; };
       card.insertBefore(auto, input); // primary path: place it above the manual paste field
     }
     if (probes[o.slug]) { showProbe(res, null, probes[o.slug], false); probe.onclick = () => reprobe(res, o.slug, null, probe); }
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") imp.click(); });
-    imp.onclick = async () => { const t = input.value.trim(); if (!t) { setRes(res, "bad", "Вставь токен"); return; } imp.disabled = true; const r = await importOauth(o.slug, t, res, probe); imp.disabled = false; if (r && r.ok) input.value = ""; };
+    imp.onclick = async () => { const tok = input.value.trim(); if (!tok) { setRes(res, "bad", t("oauth_pasteToken")); return; } imp.disabled = true; const r = await importOauth(o.slug, tok, res, probe); imp.disabled = false; if (r && r.ok) input.value = ""; };
   } else if (o.kind === "redirect") {
     const row = el("div", "actions");
-    const btn = el("button", "sm", "Подключить (вход в браузере)"); btn.onclick = () => connectOauth(o.slug); row.append(btn);
-    const dash = el("button", "ghost sm", "или в дашборде ↗"); dash.title = "Открыть флоу в дашборде OmniRoute";
+    const btn = el("button", "sm", t("oauth_connectBrowser")); btn.onclick = () => connectOauth(o.slug); row.append(btn);
+    const dash = el("button", "ghost sm", t("oauth_inDashboard")); dash.title = t("oauth_inDashboardTitle");
     dash.onclick = () => chrome.tabs.create({ url: OMNI_BASE + "/dashboard/providers/" + o.slug }); row.append(dash);
     card.append(row);
     if (o.zipAuth) card.append(zipImportRow(o)); // bulk import of many exported accounts from a .zip
   } else {
-    const btn = el("button", "sm", "Подключить"); btn.onclick = () => startOauth(o.slug); card.append(btn);
+    const btn = el("button", "sm", t("oauth_connect")); btn.onclick = () => startOauth(o.slug); card.append(btn);
   }
   return card;
 }
@@ -479,29 +511,29 @@ function renderOauth() {
   const match = (o) => !q || o.label.toLowerCase().includes(q) || o.slug.includes(q);
   const list = OMNI_OAUTH.filter(match);
   const box = $("oauthList"); box.textContent = "";
-  if (!list.length) { box.append(el("div", "empty", "Ничего не найдено.")); return; }
-  const titles = { device: "Device-код", redirect: "Вход в браузере", import: "Вставка токена" };
+  if (!list.length) { box.append(el("div", "empty", t("popup_nothingFound"))); return; }
+  const titles = { device: t("oauth_grpDevice"), redirect: t("oauth_grpRedirect"), import: t("oauth_grpImport") };
   for (const k of ["device", "redirect", "import"]) {
     const grp = list.filter((o) => o.kind === k);
     if (!grp.length) continue;
-    const t = el("div", "grp-title", titles[k]); t.append(el("span", "n", String(grp.length))); box.append(t);
+    const ttl = el("div", "grp-title", titles[k]); ttl.append(el("span", "n", String(grp.length))); box.append(ttl);
     for (const o of grp) box.append(oauthCard(o));
   }
 }
 $("oauthSearch").addEventListener("input", debounce(renderOauth, 140));
 async function startOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: "OmniRoute :20128 недоступен" }; renderOauth(); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", userCode: "…", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthStart", provider: slug });
-  if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || "Ошибка" }; renderOauth(); return; }
+  if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
   await refreshOauth();
 }
 // Redirect/PKCE: kick off the browser login; OmniRoute's callback server completes it, we poll.
 async function connectOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: "OmniRoute :20128 недоступен" }; renderOauth(); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", kind: "redirect", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthConnect", provider: slug });
-  if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || "Ошибка" }; renderOauth(); return; }
+  if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
   await refreshOauth();
 }
 // Import-token: paste → add → honest probe (shares the web/apikey add-flow).
@@ -531,10 +563,10 @@ async function refreshOauth() {
 function setFooter() {
   let g = 0, b = 0; for (const k in conns) { g += conns[k].good || 0; b += conns[k].bad || 0; }
   const health = `🔗 ${connTotal}${g ? ` · 🟢 ${g}` : ""}${b ? ` · 🔴 ${b}` : ""} · 127.0.0.1:20128`;
-  $("ftrHint").textContent = !serverOnline ? "⚠ 127.0.0.1:20128 не запущен"
-    : connUnreachable ? "⚠ не удалось прочитать соединения — открой дашборд и войди"
+  $("ftrHint").textContent = !serverOnline ? t("popup_footerDown")
+    : connUnreachable ? t("popup_footerUnreadable")
     : connTotal ? health
-    : "Онлайн · 127.0.0.1:20128 — залогинься в дашборде";
+    : t("popup_footerLogin");
   document.body.classList.toggle("offline", !serverOnline);
 }
 async function probeServer() {
@@ -544,7 +576,8 @@ async function probeServer() {
   // http loopback server as mixed content (Chrome exempts loopback). The tab path is http→http.
   const r = await msg({ action: "ping" }).catch(() => null);
   if (r && r.ok) { serverOnline = true; dot.className = "dot ok"; txt.textContent = "127.0.0.1:20128"; }
-  else { serverOnline = false; dot.className = "dot bad"; txt.textContent = "127.0.0.1:20128 — недоступен"; }
+  // Show the real reason (from runInDash: tab open / injection / timeout) instead of a bare "недоступен".
+  else { serverOnline = false; dot.className = "dot bad"; txt.textContent = (r && r.detail) ? "127.0.0.1:20128 — " + r.detail : t("popup_srvDown"); }
   setFooter();
 }
 async function detectActiveTab() {
@@ -575,29 +608,29 @@ function renderProblems() {
     }
   }
   if (!merged.length) return;
-  const t = el("div", "grp-title bad", "⚠ Требуют внимания"); t.append(el("span", "n", String(merged.length)));
+  const ttl = el("div", "grp-title bad", t("web_attention")); ttl.append(el("span", "n", String(merged.length)));
   let pushed = false;
   const webProbs = merged.filter((m) => OMNI_WEB_MAP[m.provider]);
   if (webProbs.length > 1) {
-    const openAll = el("button", "ghost sm", "Войти заново во все"); openAll.style.marginLeft = "auto"; pushed = true;
-    openAll.title = "Открыть страницы входа всех проблемных провайдеров";
+    const openAll = el("button", "ghost sm", t("web_loginAll")); openAll.style.marginLeft = "auto"; pushed = true;
+    openAll.title = t("web_loginAllTitle");
     openAll.onclick = () => { for (const m of webProbs) chrome.tabs.create({ url: loginTarget(OMNI_WEB_MAP[m.provider]) }); };
-    t.append(openAll);
+    ttl.append(openAll);
   }
   const withId = merged.filter((m) => m.id);
-  if (withId.length > 1) { const delAll = el("button", "ghost sm danger", "Удалить все"); if (!pushed) delAll.style.marginLeft = "auto"; wireDeleteAll(delAll, withId); t.append(delAll); }
-  box.append(t);
+  if (withId.length > 1) { const delAll = el("button", "ghost sm danger", t("popup_deleteAll")); if (!pushed) delAll.style.marginLeft = "auto"; wireDeleteAll(delAll, withId); ttl.append(delAll); }
+  box.append(ttl);
   for (const pr of merged) {
     const wp = OMNI_WEB_MAP[pr.provider];
     const oa = OMNI_OAUTH_MAP[pr.provider];
     const label = providerLabel(pr.provider);
     const row = el("div", "prob");
     const info = el("div", "prob-info");
-    const pn = el("div", "prob-name", pr.name || "(без имени)"); if (pr.name) pn.title = pr.name; info.append(pn);
+    const pn = el("div", "prob-name", pr.name || t("popup_noName")); if (pr.name) pn.title = pr.name; info.append(pn);
     info.append(el("div", "prob-sub", `🔴 ${label} · ${pr.provider}` + (pr.probe && pr.probe.detail ? " · " + String(pr.probe.detail).slice(0, 50) : "")));
     row.append(info);
-    if (wp) { const open = el("button", "ghost sm", "Войти заново"); open.title = "Открыть страницу входа провайдера, залогиниться и отправить сообщение — сессия перезахватится"; open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
-    else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", "Переподключить"); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
+    if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
+    else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
     if (pr.id) connActions(row, info, pr, renderProblems);
     box.append(row);
   }
@@ -606,19 +639,19 @@ function renderProblems() {
 // delete. Used by BOTH the attention band and the full connections manager. `conn` = {id,name,isActive};
 // `rerender` re-runs the caller's own render (to restore the row when a rename is cancelled).
 function connActions(row, info, conn, rerender) {
-  const ren = el("button", "ghost sm", "✎"); ren.title = "Переименовать соединение"; ren.setAttribute("aria-label", "Переименовать");
+  const ren = el("button", "ghost sm", "✎"); ren.title = t("popup_renameTitle"); ren.setAttribute("aria-label", t("popup_rename"));
   ren.onclick = () => {
     const inp = el("input"); inp.type = "text"; inp.value = conn.name || ""; inp.style.margin = "0";
-    const save = el("button", "sm", "✓"); save.title = "Сохранить имя";
+    const save = el("button", "sm", "✓"); save.title = t("popup_saveName");
     save.onclick = async () => { const nn = inp.value.trim(); if (nn && nn !== conn.name) { const r = await msg({ action: "updateConn", id: conn.id, patch: { name: nn } }); if (r && r.ok) { loadConnections(); return; } } rerender(); };
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); if (e.key === "Escape") rerender(); });
     info.textContent = ""; info.append(inp, save); inp.focus();
   };
   // Enable/disable this connection (OmniRoute stops routing to a disabled one — keep it without deleting).
-  const tog = el("button", "ghost sm", conn.isActive === false ? "Включить" : "Выключить");
-  tog.title = "Вкл/выкл маршрутизацию на это соединение (не удаляет)";
-  tog.onclick = async () => { tog.disabled = true; const r = await msg({ action: "updateConn", id: conn.id, patch: { isActive: conn.isActive === false } }); if (r && r.ok) loadConnections(); else { tog.disabled = false; tog.textContent = "Ошибка"; } };
-  const del = el("button", "ghost sm danger", "Удалить"); wireDelete(del, conn.id, row);
+  const tog = el("button", "ghost sm", conn.isActive === false ? t("popup_enable") : t("popup_disable"));
+  tog.title = t("popup_toggleTitle");
+  tog.onclick = async () => { tog.disabled = true; const r = await msg({ action: "updateConn", id: conn.id, patch: { isActive: conn.isActive === false } }); if (r && r.ok) loadConnections(); else { tog.disabled = false; tog.textContent = t("popup_error"); } };
+  const del = el("button", "ghost sm danger", t("popup_delete")); wireDelete(del, conn.id, row);
   row.append(ren, tog, del);
 }
 // Full connections manager (collapsible, in the global band): rename/enable-disable/delete ANY
@@ -629,7 +662,7 @@ function renderManage() {
   const box = $("manageSection"); if (!box) return;
   box.textContent = "";
   if (!allConns.length) return; // nothing to manage (or connections unreadable — footer already says so)
-  const head = el("button", "manage-head", "⚙ Все соединения");
+  const head = el("button", "manage-head", t("popup_manageAll"));
   head.append(el("span", "n", String(allConns.length)), el("span", "chev", manageOpen ? "▾" : "▸"));
   head.setAttribute("aria-expanded", manageOpen ? "true" : "false");
   head.onclick = () => { manageOpen = !manageOpen; renderManage(); };
@@ -639,13 +672,13 @@ function renderManage() {
   for (const c of allConns) (byProv[c.provider] = byProv[c.provider] || []).push(c);
   for (const slug of Object.keys(byProv).sort()) {
     const label = providerLabel(slug);
-    const t = el("div", "grp-title", label); t.append(el("span", "n", String(byProv[slug].length))); box.append(t);
+    const ttl = el("div", "grp-title", label); ttl.append(el("span", "n", String(byProv[slug].length))); box.append(ttl);
     for (const c of byProv[slug]) {
       const bad = c.hasError || c.testStatus === "banned" || c.testStatus === "error";
       const row = el("div", "prob" + (bad ? "" : " okrow"));
       const info = el("div", "prob-info");
-      const pn = el("div", "prob-name", c.name || "(без имени)"); if (c.name) pn.title = c.name; info.append(pn);
-      const state = c.isActive === false ? "⏸ выключено" : bad ? "🔴 не работает" : "🟢 активно";
+      const pn = el("div", "prob-name", c.name || t("popup_noName")); if (c.name) pn.title = c.name; info.append(pn);
+      const state = c.isActive === false ? t("popup_stateOff") : bad ? t("popup_stateBad") : t("popup_stateOk");
       info.append(el("div", "prob-sub", `${state} · ${c.provider}`));
       row.append(info);
       connActions(row, info, c, renderManage);
@@ -657,20 +690,20 @@ function renderManage() {
 function armConfirm(btn, idleLabel, armedLabel, onConfirm) {
   btn.onclick = async (e) => {
     e.stopPropagation();
-    if (btn.dataset.armed) { btn.textContent = "Удаляю…"; btn.disabled = true; await onConfirm(); return; }
+    if (btn.dataset.armed) { btn.textContent = t("popup_deleting"); btn.disabled = true; await onConfirm(); return; }
     btn.dataset.armed = "1"; btn.textContent = armedLabel; btn.classList.add("armed");
     setTimeout(() => { if (btn.dataset.armed) { btn.dataset.armed = ""; btn.textContent = idleLabel; btn.classList.remove("armed"); } }, 3000);
   };
 }
 function wireDelete(btn, id, row) {
-  armConfirm(btn, "Удалить", "Точно удалить?", async () => {
+  armConfirm(btn, t("popup_delete"), t("popup_deleteConfirm"), async () => {
     const r = await msg({ action: "deleteConn", id });
     if (r && r.ok) { row.remove(); loadConnections(); }
-    else { btn.disabled = false; btn.textContent = "Ошибка"; }
+    else { btn.disabled = false; btn.textContent = t("popup_error"); }
   });
 }
 function wireDeleteAll(btn, items) {
-  armConfirm(btn, "Удалить все", `Удалить все ${items.length}?`, async () => {
+  armConfirm(btn, t("popup_deleteAll"), t("popup_deleteAllConfirm", [String(items.length)]), async () => {
     for (const it of items) await msg({ action: "deleteConn", id: it.id });
     loadConnections();
   });
@@ -686,9 +719,9 @@ let probeStart = 0;
 async function runProbeAll() {
   const slugs = Object.keys(conns);
   const btn = $("probeAllBtn"), res = $("probeAllRes"), prog = $("probeProg"), bar = $("probeProgBar");
-  if (!slugs.length) { res.className = "res show mut"; res.textContent = "нет соединений"; return; }
+  if (!slugs.length) { res.className = "res show mut"; res.textContent = t("popup_noConns"); return; }
   btn.disabled = true; prog.classList.remove("hide"); bar.style.width = "0%"; probeStart = Date.now();
-  res.className = "res show pend"; res.textContent = `Проверяю 0/${slugs.length}…`;
+  res.className = "res show pend"; res.textContent = t("popup_probingN", ["0", String(slugs.length)]);
   const r = await msg({ action: "probeAll", slugs });
   const results = (r && r.results) || {};
   for (const k in results) probes[k] = { ...results[k], at: Date.now() };
@@ -697,7 +730,7 @@ async function runProbeAll() {
   const bad = vals.filter((v) => v.alive === false).length;
   bar.style.width = "100%";
   res.className = "res show " + (bad ? "bad" : "ok");
-  res.textContent = `Готово: 🟢 ${good}  ·  🔴 ${bad}  ·  ⚪ ${slugs.length - good - bad}`;
+  res.textContent = t("popup_probeAllDone", [String(good), String(bad), String(slugs.length - good - bad)]);
   setTimeout(() => prog.classList.add("hide"), 900);
   btn.disabled = false;
   renderWeb(); keyPaneFill(); renderProblems();
@@ -709,7 +742,7 @@ function onProbeProgress(m) {
   const eta = m.done && m.done < m.total ? Math.max(1, Math.round((el2 / m.done) * (m.total - m.done))) : 0;
   const label = providerLabel(m.slug);
   res.className = "res show pend";
-  res.textContent = `Проверяю ${m.done}/${m.total} · ${label}` + (eta ? ` · ~${eta}с` : "");
+  res.textContent = t("popup_probingWith", [String(m.done), String(m.total), label]) + (eta ? " · " + t("popup_probeEta", [String(eta)]) : "");
 }
 async function refresh() {
   const r = await msg({ action: "getAll" });
@@ -743,16 +776,16 @@ async function loadSettings() {
   $("setTheme").value = s.theme || "auto"; applyTheme(s.theme);
   try { $("setVer").textContent = "v" + chrome.runtime.getManifest().version; } catch (e) {}
   $("setSummary").textContent = connTotal
-    ? `🔗 ${connTotal} соединений в ${Object.keys(conns).length} провайдерах`
-    : `Каталог: web ${OMNI_WEB.length} · apikey ${OMNI_APIKEY.length} · oauth ${OMNI_OAUTH.length}`;
+    ? t("set_summaryConns", [String(connTotal), String(Object.keys(conns).length)])
+    : t("set_summaryCatalog", [String(OMNI_WEB.length), String(OMNI_APIKEY.length), String(OMNI_OAUTH.length)]);
   const { last_sweep, last_recovery: rec } = await chrome.storage.local.get(["last_sweep", "last_recovery"]);
-  $("lastSweep").textContent = last_sweep ? "Последняя проверка: " + ago(last_sweep) : "Фоновая проверка ещё не запускалась.";
+  $("lastSweep").textContent = last_sweep ? t("set_lastSweep", [ago(last_sweep)]) : t("set_noSweep");
   // restartRecovery runs unattended at browser launch — say what it did, or you can't tell it ran.
   $("lastRecovery").textContent = !rec
-    ? "Восстановление сессий на старте ещё не запускалось."
+    ? t("set_noRecovery")
     : rec.unreachable
-      ? `↻ На старте OmniRoute был недоступен — ничего не восстановлено · ${ago(rec.at)}`
-      : `↻ Восстановлено на старте: ${rec.restored} · ${ago(rec.at)}` + (rec.purged ? ` · протухших удалено: ${rec.purged}` : "");
+      ? t("set_recoveryUnreachable", [ago(rec.at)])
+      : t("set_recoveryDone", [String(rec.restored), ago(rec.at)]) + (rec.purged ? " · " + t("set_recoveryPurged", [String(rec.purged)]) : "");
 }
 // One chip per provider the background sweep would probe (i.e. the ones with connections — exactly
 // what conn_slugs feeds it). Struck-through = opted out. Toggling saves only sweepSkip; applySettings
@@ -760,12 +793,12 @@ async function loadSettings() {
 function renderSweepSkip(skip) {
   const box = $("sweepSkipChips"); box.textContent = "";
   const slugs = Object.keys(conns).sort();
-  if (!slugs.length) { box.append(el("span", "hint-sm", "Пока нечего — нет соединений.")); return; }
+  if (!slugs.length) { box.append(el("span", "hint-sm", t("set_skipEmpty"))); return; }
   const set = new Set(skip);
   for (const slug of slugs) {
     const off = set.has(slug);
     const c = el("button", "chip" + (off ? " off" : ""), providerLabel(slug));
-    c.title = off ? "Пропускается в фоне — нажми, чтобы снова проверять" : "Проверяется в фоне — нажми, чтобы пропускать";
+    c.title = off ? t("set_skipOffTitle") : t("set_skipOnTitle");
     c.setAttribute("aria-pressed", String(off));
     c.onclick = async () => {
       const next = off ? [...set].filter((x) => x !== slug) : [...set, slug];
@@ -780,15 +813,26 @@ function saveSettings() {
   msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked } });
 }
 function initSettings() {
+  // Firefox: request the 127.0.0.1 host permission on click (a user gesture, as permissions.request needs),
+  // then re-probe. On grant the whole reachability chain (tab injection) starts working.
+  $("grantBtn").addEventListener("click", async () => {
+    let granted = false;
+    try { granted = await chrome.permissions.request({ origins: HOST_ORIGINS }); } catch (e) { /* not requestable */ }
+    if (granted) {
+      $("permBanner").classList.add("hide");
+      await probeServer();
+      if (serverOnline) { await fetchConnections(); renderProblems(); renderManage(); renderWeb(); keyPaneFill(); }
+    }
+  });
   $("settingsBtn").addEventListener("click", () => { const p = $("settingsPanel"); p.classList.toggle("hide"); if (!p.classList.contains("hide")) { loadSettings(); $("setSweep").focus(); } });
   for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme"]) $(id).addEventListener("change", saveSettings);
   $("sweepNowBtn").addEventListener("click", async () => {
-    const b = $("sweepNowBtn"); b.disabled = true; b.textContent = "Проверяю…";
+    const b = $("sweepNowBtn"); b.disabled = true; b.textContent = t("set_sweeping");
     const r = await msg({ action: "sweepNow" });
-    if (r && r.ran === false) { b.textContent = "Проверка уже идёт…"; setTimeout(() => { b.disabled = false; b.textContent = "🩺 Проверить все соединения сейчас"; }, 1500); return; }
+    if (r && r.ran === false) { b.textContent = t("set_sweepBusy"); setTimeout(() => { b.disabled = false; b.textContent = t("set_sweepNow"); }, 1500); return; }
     const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
     await loadConnections(); await loadSettings();
-    b.disabled = false; b.textContent = "🩺 Проверить все соединения сейчас";
+    b.disabled = false; b.textContent = t("set_sweepNow");
   });
   $("clearProbesBtn").addEventListener("click", async () => { await msg({ action: "clearProbes" }); probes = {}; await loadConnections(); loadSettings(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settingsPanel").classList.contains("hide")) { $("settingsPanel").classList.add("hide"); $("settingsBtn").focus(); } }); // Esc closes settings, focus back to gear
@@ -825,6 +869,7 @@ if (windowed) {
   await detectActiveTab();
   initKeyPane();
   await refresh();
+  await refreshHostBanner(); // Firefox: show the "grant access" banner if 127.0.0.1 isn't permitted yet
   await probeServer();
   if (serverOnline) { await fetchConnections(); $("probeAllBtn").disabled = !connTotal; }
   renderOauth();          // now conn counts are available for the device cards
