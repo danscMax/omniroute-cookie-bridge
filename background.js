@@ -440,17 +440,18 @@ async function probeAll(slugs, emit = true) {
     const mm = await fetchModels();
     const models = mm.ok ? mm.models : [];
     const out = {};
-    const toStore = {};
     const now = Date.now();
     for (let i = 0; i < slugs.length; i++) {
       const slug = slugs[i];
       out[slug] = models.length ? await probeModel(models, slug) : { alive: null, detail: mm.ok ? "нет моделей у провайдера" : "нет доступа к /v1/models" };
-      toStore["probe_" + slug] = { ...out[slug], at: now };
+      // Persist each verdict as it lands, NOT one batch at the end: every verdict costs a real
+      // completion against the provider, and an MV3 worker can be killed mid-sweep — batching traded
+      // the whole run's work for saving a few microsecond-cheap storage writes.
+      await LOC.set({ ["probe_" + slug]: { ...out[slug], at: now } });
       // emit=false for the unattended sweep: it must NOT drive the popup's user-initiated progress bar
       // (which would animate a run the user never started and then stick, since the sweep sends no "done").
       if (emit) try { chrome.runtime.sendMessage({ type: "probeProgress", done: i + 1, total: slugs.length, slug, alive: out[slug].alive }); } catch (e) { /* popup closed */ }
     }
-    LOC.set(toStore); // one write instead of N per-slug round-trips
     return { results: out };
   } finally { probing = false; }
 }

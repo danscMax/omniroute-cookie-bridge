@@ -151,4 +151,36 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.deepEqual(pushed, ["chatgpt-web"], "only the still-plausible capture is re-pushed");
 }
 
-console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate / no-resurrect / offline-safe)");
+// ── 9. probeAll: real verdicts, and each one persisted AS IT LANDS ──────────────────────────────
+// Also the only test that runs probeAll's full body — the batch-write refactor shipped a ReferenceError
+// past `node --check` and every other test here, because they all exit before the loop.
+{
+  const { chrome, sandbox } = boot({
+    dash: {
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }, { id: "kimi-web/k2" }] }),
+      chatProbeInPage: (modelId) =>
+        modelId.startsWith("chatgpt-web/")
+          ? { fetched: true, ok: true, status: 200, msg: "" }
+          : { fetched: true, ok: false, status: 401, msg: "unauthorized" },
+    },
+  });
+  const { results } = await sandbox.probeAll(["chatgpt-web", "kimi-web"], false);
+  assert.equal(results["chatgpt-web"].alive, true, "200 → alive");
+  assert.equal(results["kimi-web"].alive, false, "401 → dead (a real auth verdict)");
+  const stored = chrome.storage.local._dump();
+  assert.ok(stored["probe_chatgpt-web"] && stored["probe_kimi-web"], "every verdict persisted as it landed (an SW kill mid-sweep can't erase the run)");
+}
+
+// ── 10. a 429 is throttling, not death — never mark the account dead on it ──────────────────────
+{
+  const { sandbox } = boot({
+    dash: {
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "kimi-web/k2" }] }),
+      chatProbeInPage: () => ({ fetched: true, ok: false, status: 429, msg: "rate limited" }),
+    },
+  });
+  const { results } = await sandbox.probeAll(["kimi-web"], false);
+  assert.equal(results["kimi-web"].alive, null, "429 → unknown, NOT dead (the account is authenticated, just throttled)");
+}
+
+console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead");
