@@ -350,6 +350,12 @@
   "oauth_searchPh": {
     "message": "Search OAuth providers…"
   },
+  "global_searchPh": {
+    "message": "Search all providers…"
+  },
+  "global_searchLabel": {
+    "message": "Search all providers"
+  },
   "oauth_searchLabel": {
     "message": "Search OAuth providers"
   },

@@ -523,6 +523,13 @@ function renderOauth() {
   }
 }
 $("oauthSearch").addEventListener("input", debounce(renderOauth, 140));
+// Global search above the tabs: mirror its value into each pane's own search input (the renderers'
+// value-source) and re-render all three panes, so one box filters Web + API-key + OAuth at once.
+$("globalSearch").addEventListener("input", debounce(() => {
+  const v = $("globalSearch").value;
+  for (const id of ["webSearch", "keySearch", "oauthSearch"]) { const e = $(id); if (e) e.value = v; }
+  renderWeb(); keyPaneFill(); renderOauth();
+}, 140));
 async function startOauth(slug) {
   if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", userCode: "…", verifyUrl: "" }; renderOauth();
@@ -634,6 +641,14 @@ function renderProblems() {
     if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
     else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
     if (pr.id) connActions(row, info, pr, renderProblems);
+    else {
+      // No OmniRoute connection id to delete — this is a stale local probe verdict. Give it a dismiss
+      // so it can be cleared from the attention band (previously id-less items had no delete at all).
+      const dis = el("button", "ghost sm danger", t("popup_delete"));
+      dis.title = t("web_dismissTitle");
+      dis.onclick = () => { delete probes[pr.provider]; msg({ action: "clearProbe", slug: pr.provider }); renderProblems(); };
+      row.append(dis);
+    }
     box.append(row);
   }
 }

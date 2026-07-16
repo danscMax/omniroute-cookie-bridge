@@ -350,6 +350,12 @@
   "oauth_searchPh": {
     "message": "Поиск OAuth-провайдера…"
   },
+  "global_searchPh": {
+    "message": "Поиск по всем провайдерам…"
+  },
+  "global_searchLabel": {
+    "message": "Поиск по всем провайдерам"
+  },
   "oauth_searchLabel": {
     "message": "Поиск OAuth-провайдера"
   },

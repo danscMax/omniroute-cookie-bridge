@@ -148,6 +148,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "setSettings": applySettings(req.settings).then((s) => send({ settings: s })); return true;
     case "sweepNow": healthSweep(true).then((r) => send({ ok: r !== false, ran: r !== false })); return true;
     case "clearProbes": clearProbes().then(() => send({ ok: true })); return true;
+    case "clearProbe": LOC.remove("probe_" + req.slug).then(() => send({ ok: true })); return true;
     default: return false;
   }
 });

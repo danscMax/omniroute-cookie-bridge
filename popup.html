@@ -29,6 +29,13 @@
     <button id="grantBtn" class="primary sm" data-i18n="perm_grant">Разрешить доступ</button>
   </div>
 
+  <!-- One global search above the tabs: mirrors into every pane's own search so typing filters
+       Web + API-key + OAuth at once, whichever tab is active. The per-pane inputs are hidden via CSS
+       but kept as the value-source the existing renderers read. -->
+  <div class="gsearch">
+    <input class="search" id="globalSearch" type="search" data-i18n-placeholder="global_searchPh" data-i18n-label="global_searchLabel" placeholder="Поиск по всем провайдерам…" aria-label="Поиск по всем провайдерам" />
+  </div>
+
   <nav class="tabs" role="tablist">
     <button class="tab on" id="tab-web" data-pane="web" role="tab" aria-selected="true" aria-controls="pane-web"><span data-i18n="popup_tabWeb">🍪 Веб</span> <span class="badge" id="bWeb">0</span></button>
     <button class="tab" id="tab-key" data-pane="key" role="tab" aria-selected="false" aria-controls="pane-key"><span data-i18n="popup_tabKey">🔑 API-ключ</span> <span class="badge" id="bKey">0</span></button>
