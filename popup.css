@@ -95,6 +95,10 @@ button:hover:not(:disabled) { filter: brightness(1.07); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.ghost { background: transparent; border: 1px solid var(--line); color: var(--tx); font-weight: 500; }
 button.sm { padding: 6px 10px; font-size: 11px; }
+/* Firefox host-permission prompt — a warn-bordered banner with a primary action (hidden in Chrome). */
+.perm-banner { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 0 0 9px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--warn); border-radius: 8px; font-size: 12px; color: var(--tx); }
+button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+button.primary:hover { filter: brightness(1.08); }
 /* Keyboard focus ring on every interactive control (was only on inputs) — a11y. */
 button:focus-visible, .tab:focus-visible, .chip:focus-visible, .keyrow-h:focus-visible, .icon-btn:focus-visible, a.link:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;

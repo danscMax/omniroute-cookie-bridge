@@ -29,6 +29,7 @@ const chrome = {
   action: { setBadgeText: () => {}, setBadgeBackgroundColor: () => {} },
   alarms: { create: () => {}, clear: () => {}, get: (n, cb) => cb(null), onAlarm: { addListener: () => {} } },
   notifications: { create: () => {} }, windows: { create: () => {} },
+  permissions: { contains: () => Promise.resolve(true), request: () => Promise.resolve(true) }, // granted → banner hidden (Chrome-like)
 };
 const sandbox = {
   document, chrome, console, navigator: { clipboard: { writeText: () => Promise.resolve() } }, location: { search: "" },
@@ -93,5 +94,8 @@ const skipChips = [...document.querySelectorAll("#sweepSkipChips .chip")].map((c
 assert.equal(skipChips.length, 2, `a sweep opt-out chip per connected provider (got ${JSON.stringify(skipChips)})`);
 assert.ok(document.querySelector("#setPersist"), "#setPersist toggle present");
 assert.ok(document.querySelector("#lastRecovery"), "#lastRecovery line present");
+// Firefox host-permission prompt: the grant button exists, and with permission granted (stub) the banner is hidden.
+assert.ok(document.querySelector("#grantBtn"), "#grantBtn present");
+assert.ok(document.querySelector("#permBanner").classList.contains("hide"), "permission banner hidden when access is granted");
 
 console.log(`render OK — 0 JS errors, oauth cards=${oauthCards}, web chips=${webChips}, manager rows=${rows.length}, sweep-skip chips=${skipChips.length}, key controls present`);

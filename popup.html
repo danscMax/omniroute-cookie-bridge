@@ -21,6 +21,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
     </button>
   </header>
+  <!-- Firefox MV3 grants host_permissions on an ad-hoc basis (and NOT on an update that changed them),
+       so the extension can lack access to 127.0.0.1 even though the manifest lists it. Chrome auto-grants,
+       so this stays hidden there. permissions.request() must run from a user gesture — hence the button. -->
+  <div id="permBanner" class="perm-banner hide">
+    <span data-i18n="perm_needed">Firefox: дай расширению доступ к 127.0.0.1:20128 — иначе оно не видит сервер.</span>
+    <button id="grantBtn" class="primary sm" data-i18n="perm_grant">Разрешить доступ</button>
+  </div>
 
   <nav class="tabs" role="tablist">
     <button class="tab on" id="tab-web" data-pane="web" role="tab" aria-selected="true" aria-controls="pane-web"><span data-i18n="popup_tabWeb">🍪 Веб</span> <span class="badge" id="bWeb">0</span></button>

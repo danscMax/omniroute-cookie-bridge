@@ -673,5 +673,11 @@
   },
   "hint_trae": {
     "message": "Trae → sign out and back in, then copy the token from devtools/config"
+  },
+  "perm_needed": {
+    "message": "Firefox: grant the extension access to 127.0.0.1:20128 — otherwise it can't see the server."
+  },
+  "perm_grant": {
+    "message": "Grant access"
   }
 }

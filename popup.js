@@ -27,6 +27,21 @@ const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
 const loginTarget = (w) => (w && (w.loginUrl || w.site)) || "";
 // One label lookup across the three registries (a slug lives in exactly one of them).
 const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || OMNI_APIKEY_MAP[slug] || {}).label) || slug;
+
+// Firefox MV3 grants host_permissions on an ad-hoc basis, and NOT on an update that changed the set —
+// so access to 127.0.0.1 can be missing even though the manifest declares it, and executeScript into the
+// dashboard tab then fails with "Missing host permission for the tab". Chrome auto-grants, so contains()
+// is true there and the banner never shows. permissions.request() must run from a user gesture (the
+// button), per the MDN permissions API.
+const HOST_ORIGINS = ["http://127.0.0.1:20128/*"];
+async function hasHostAccess() {
+  try { return await chrome.permissions.contains({ origins: HOST_ORIGINS }); } catch { return true; } // no permissions API → assume ok
+}
+async function refreshHostBanner() {
+  const ok = await hasHostAccess();
+  $("permBanner").classList.toggle("hide", ok);
+  return ok;
+}
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
@@ -798,6 +813,17 @@ function saveSettings() {
   msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked } });
 }
 function initSettings() {
+  // Firefox: request the 127.0.0.1 host permission on click (a user gesture, as permissions.request needs),
+  // then re-probe. On grant the whole reachability chain (tab injection) starts working.
+  $("grantBtn").addEventListener("click", async () => {
+    let granted = false;
+    try { granted = await chrome.permissions.request({ origins: HOST_ORIGINS }); } catch (e) { /* not requestable */ }
+    if (granted) {
+      $("permBanner").classList.add("hide");
+      await probeServer();
+      if (serverOnline) { await fetchConnections(); renderProblems(); renderManage(); renderWeb(); keyPaneFill(); }
+    }
+  });
   $("settingsBtn").addEventListener("click", () => { const p = $("settingsPanel"); p.classList.toggle("hide"); if (!p.classList.contains("hide")) { loadSettings(); $("setSweep").focus(); } });
   for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme"]) $(id).addEventListener("change", saveSettings);
   $("sweepNowBtn").addEventListener("click", async () => {
@@ -843,6 +869,7 @@ if (windowed) {
   await detectActiveTab();
   initKeyPane();
   await refresh();
+  await refreshHostBanner(); // Firefox: show the "grant access" banner if 127.0.0.1 isn't permitted yet
   await probeServer();
   if (serverOnline) { await fetchConnections(); $("probeAllBtn").disabled = !connTotal; }
   renderOauth();          // now conn counts are available for the device cards
