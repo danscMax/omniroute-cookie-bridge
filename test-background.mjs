@@ -122,4 +122,28 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.deepEqual(pushed, [], "can't verify what exists → push nothing rather than recreate blindly");
 }
 
-console.log("background OK — capture→disk mirror, toggle purge, clear, restartRecovery (rehydrate / no-resurrect / offline-safe)");
+// ── 8. a capture past the disk TTL is buried, not restored ──────────────────────────────────────
+{
+  const pushed = [];
+  const { chrome, sandbox } = boot({
+    dash: {
+      readConnectionsInPage: () => ({ ok: true, connections: [
+        { provider: "chatgpt-web", id: "c1", name: "ChatGPT Web · a", testStatus: "error" },
+        { provider: "perplexity-web", id: "c2", name: "Perplexity Web · b", testStatus: "error" },
+      ] }),
+      postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; },
+      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+    },
+  });
+  const DAY = 24 * 60 * 60 * 1000;
+  await chrome.storage.local.set({
+    "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", label: "ChatGPT Web", cookie: "fresh", token: "", at: Date.now() - 2 * DAY, accountId: "a" },
+    "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "corpse", token: "", at: Date.now() - 8 * DAY, accountId: "b" },
+  });
+  await sandbox.restartRecovery();
+  assert.deepEqual(capsIn(chrome.storage.local), ["cap_chatgpt-web"], "capture older than the 7d TTL is purged from disk");
+  assert.deepEqual(capsIn(chrome.storage.session), ["cap_chatgpt-web"], "the corpse is never hydrated into memory");
+  assert.deepEqual(pushed, ["chatgpt-web"], "only the still-plausible capture is re-pushed");
+}
+
+console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate / no-resurrect / offline-safe)");

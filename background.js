@@ -22,6 +22,14 @@ const LOC = chrome.storage.local;   // non-secret: probe_<slug>, sel_apikey, hea
 
 // User settings (persisted, non-secret). Defaults chosen for "helpful but not costly".
 const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true };
+
+// How long a mirrored capture may sit on disk. Session cookies live "hours to days", so one that hasn't
+// been refreshed in a week is a corpse: re-pushing it can't authenticate anything, and keeping it is a
+// secret stored for no upside. NOT the popup's 6h "possibly stale" hint — that's advice while you look;
+// this is when we stop storing it at all (a night is 8-12h, so a 6h disk TTL would delete exactly what
+// restartRecovery exists to restore).
+const CAP_DISK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 async function getSettings() {
   const { settings } = await LOC.get("settings");
   return { ...SETTINGS_DEFAULT, ...(settings || {}) };
@@ -787,9 +795,17 @@ async function restartRecovery() {
   const all = await LOC.get(null);
   const capKeys = Object.keys(all).filter((k) => k.startsWith("cap_") && all[k]);
   if (!capKeys.length) return;
+  // Bury the corpses BEFORE hydrating: past CAP_DISK_TTL_MS a capture can't authenticate anything, so
+  // it's a secret kept on disk for nothing — and re-pushing it would only overwrite OmniRoute's copy
+  // with the same dead cookie. Purging here (not later) keeps expired creds out of session storage too.
+  const now = Date.now();
+  const expired = capKeys.filter((k) => !all[k].at || now - all[k].at > CAP_DISK_TTL_MS);
+  if (expired.length) await LOC.remove(expired);
+  const live = capKeys.filter((k) => !expired.includes(k));
+  if (!live.length) return;
   const sec = await SEC.get(null);
   const toHydrate = {};
-  for (const k of capKeys) if (!sec[k]) toHydrate[k] = all[k]; // don't clobber a fresher in-session capture
+  for (const k of live) if (!sec[k]) toHydrate[k] = all[k]; // don't clobber a fresher in-session capture
   if (Object.keys(toHydrate).length) { await SEC.set(toHydrate); updateBadge(); }
   // Re-push ONLY to refresh sessions OmniRoute still has — never resurrect a connection the user
   // deleted in the dashboard (its cap_ can linger on disk). If OmniRoute is unreachable we can't verify
@@ -797,7 +813,7 @@ async function restartRecovery() {
   const conns = await readConnections();
   const existing = conns.unreachable ? null : new Set(Object.keys(conns.byProvider || {}));
   if (existing) {
-    for (const k of capKeys) {
+    for (const k of live) {
       const slug = (OMNI_WEB_MAP[k.slice(4)] || {}).slug;
       if (slug && existing.has(slug)) {
         try { await sendToOmni(k.slice(4)); } catch (e) { /* one bad slug must not stop the rest */ }
