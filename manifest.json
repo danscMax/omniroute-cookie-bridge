@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OmniRoute Bridge",
-  "version": "4.22.5",
+  "version": "4.23.0",
   "description": "Заводит всех провайдеров OmniRoute (:20128) в одно окно: захват веб-сессий (вкл. HttpOnly-куки), вставка API-ключей (170+), все OAuth-флоу (device-код / вход в браузере / вставка токена). Честная живая проверка каждого соединения + фоновый health-мониторинг. Каталог генерируется из исходника OmniRoute.",
   "author": "Castellyn",
   "permissions": [

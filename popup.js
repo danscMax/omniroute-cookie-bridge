@@ -590,8 +590,7 @@ function renderProblems() {
   for (const pr of merged) {
     const wp = OMNI_WEB_MAP[pr.provider];
     const oa = OMNI_OAUTH_MAP[pr.provider];
-    const ap = !wp && OMNI_APIKEY_MAP[pr.provider];
-    const label = (wp && wp.label) || (oa && oa.label) || (ap && ap.label) || pr.provider;
+    const label = providerLabel(pr.provider);
     const row = el("div", "prob");
     const info = el("div", "prob-info");
     const pn = el("div", "prob-name", pr.name || "(без имени)"); if (pr.name) pn.title = pr.name; info.append(pn);
@@ -639,8 +638,7 @@ function renderManage() {
   const byProv = {};
   for (const c of allConns) (byProv[c.provider] = byProv[c.provider] || []).push(c);
   for (const slug of Object.keys(byProv).sort()) {
-    const wp = OMNI_WEB_MAP[slug], oa = OMNI_OAUTH_MAP[slug], ap = OMNI_APIKEY_MAP[slug];
-    const label = (wp && wp.label) || (oa && oa.label) || (ap && ap.label) || slug;
+    const label = providerLabel(slug);
     const t = el("div", "grp-title", label); t.append(el("span", "n", String(byProv[slug].length))); box.append(t);
     for (const c of byProv[slug]) {
       const bad = c.hasError || c.testStatus === "banned" || c.testStatus === "error";
@@ -709,8 +707,7 @@ function onProbeProgress(m) {
   bar.style.width = Math.round((m.done / m.total) * 100) + "%";
   const el2 = m.done ? (Date.now() - probeStart) / 1000 : 0;
   const eta = m.done && m.done < m.total ? Math.max(1, Math.round((el2 / m.done) * (m.total - m.done))) : 0;
-  const wp = OMNI_WEB_MAP[m.slug], ap = !wp && OMNI_APIKEY_MAP[m.slug];
-  const label = (wp && wp.label) || (ap && ap.label) || m.slug;
+  const label = providerLabel(m.slug);
   res.className = "res show pend";
   res.textContent = `Проверяю ${m.done}/${m.total} · ${label}` + (eta ? ` · ~${eta}с` : "");
 }

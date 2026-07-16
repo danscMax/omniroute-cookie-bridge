@@ -78,7 +78,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
     dash: {
       // OmniRoute knows chatgpt-web; perplexity-web was deleted in the dashboard.
       readConnectionsInPage: () => ({ ok: true, connections: [{ provider: "chatgpt-web", id: "c1", name: "ChatGPT Web · acc", testStatus: "error" }] }),
-      postProviderInPage: (slug, name) => { pushed.push(slug); return { ok: true, id: "c1" }; },
+      postProviderInPage: (slug) => { pushed.push(slug); return { ok: true, id: "c1" }; },
       gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
     },
   });
@@ -181,6 +181,20 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   });
   const { results } = await sandbox.probeAll(["kimi-web"], false);
   assert.equal(results["kimi-web"].alive, null, "429 → unknown, NOT dead (the account is authenticated, just throttled)");
+}
+
+// ── 11b. everything expired → still report it (burying corpses IS what the run did) ─────────────
+{
+  const { chrome, sandbox } = boot();
+  await chrome.storage.local.set({
+    "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", cookie: "corpse", at: Date.now() - 30 * 24 * 60 * 60 * 1000, accountId: "a" },
+  });
+  await sandbox.restartRecovery();
+  assert.deepEqual(capsIn(chrome.storage.local), [], "the corpse is gone");
+  const rec = chrome.storage.local._dump().last_recovery;
+  assert.ok(rec, "a run that only purged still leaves a record (popup must not say 'ещё не запускалось')");
+  assert.equal(rec.restored, 0, "nothing restored");
+  assert.equal(rec.purged, 1, "and it says how many corpses it buried");
 }
 
 // ── 11. sweepSkip: the unattended sweep must not spend a request on an opted-out provider ───────

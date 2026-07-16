@@ -811,7 +811,12 @@ async function restartRecovery() {
   const expired = capKeys.filter((k) => !all[k].at || now - all[k].at > CAP_DISK_TTL_MS);
   if (expired.length) await LOC.remove(expired);
   const live = capKeys.filter((k) => !expired.includes(k));
-  if (!live.length) return;
+  // Record even when everything expired: burying N corpses IS what this run did, and without the line
+  // the popup would report "ещё не запускалось" straight after doing it.
+  if (!live.length) {
+    await LOC.set({ last_recovery: { at: Date.now(), restored: 0, purged: expired.length, unreachable: false } });
+    return;
+  }
   const sec = await SEC.get(null);
   const toHydrate = {};
   for (const k of live) if (!sec[k]) toHydrate[k] = all[k]; // don't clobber a fresher in-session capture
