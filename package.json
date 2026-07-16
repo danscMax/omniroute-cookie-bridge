@@ -1,6 +1,6 @@
 {
   "name": "omniroute-bridge",
-  "version": "4.24.0",
+  "version": "4.24.1",
   "private": true,
   "description": "Dev tooling for the OmniRoute Bridge extension (the extension itself needs no build — load the folder unpacked). NOTE: no \"type\":\"module\" — the extension's .js files are browser scripts (CommonJS-style globals); the .mjs tools are ESM by extension.",
   "scripts": {

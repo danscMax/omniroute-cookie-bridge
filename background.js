@@ -17,6 +17,15 @@
 // they're already loaded as globals via the manifest, and importScripts doesn't exist — so guard it.
 if (typeof OMNI_GEN === "undefined" && typeof importScripts === "function") importScripts("providers.gen.js", "providers.js");
 
+// Chrome MV3 runs the background as a service worker (importScripts exists); Firefox runs it as a
+// background page (background.scripts, no importScripts). We use that as the Chrome-vs-Firefox
+// discriminator for ONE decision: whether a DIRECT fetch to the http loopback works. In Chrome's SW it
+// does (no tab needed). In Firefox a direct http fetch from the extension's secure context to the http
+// loopback does NOT reject — it HANGS (the old probeServer only surfaced it via a 5s abort), so a
+// direct-first with no timeout never returns and the popup reads the server as down. Firefox therefore
+// goes straight through the dashboard tab (http→http), the path the extension uses everywhere else.
+const CAN_DIRECT_FETCH = typeof importScripts === "function";
+
 const SEC = chrome.storage.session; // secrets: cap_<key>, apikey_aistudio, oauth_<slug>
 const LOC = chrome.storage.local;   // non-secret: probe_<slug>, sel_apikey, health_dead, conn_slugs, settings, last_sweep
 
@@ -220,13 +229,12 @@ async function requireGateway() {
 // Reachability for the popup status dot: direct fetch first (Chrome — no tab), fall back to the dashboard
 // tab (Firefox blocks a direct http fetch from the extension's secure context to the http loopback).
 async function pingGateway() {
-  try {
-    const r = await fetch(OMNI_BASE + "/api/providers", { method: "GET" });
-    return !!r; // any response (even 401) means the server is reachable
-  } catch {
-    const r = await runInDash(gatewayProbeInPage);
-    return !!(r && r.ok === true);
+  if (CAN_DIRECT_FETCH) {
+    // Chrome: a direct fetch is fine and needs no tab. On any error, fall through to the tab path.
+    try { return !!(await fetch(OMNI_BASE + "/api/providers", { method: "GET" })); } catch {}
   }
+  const r = await runInDash(gatewayProbeInPage); // Firefox (and Chrome-fallback): via the dashboard tab
+  return !!(r && r.ok === true);
 }
 
 // POST /api/providers (create only — NO lying auto-test; the popup probes for real separately).
@@ -364,16 +372,17 @@ function fetchModelsInPage() {
 }
 async function fetchModels() {
   if (_modelsCache && Date.now() - _modelsCache.at < 45000) return { ok: true, models: _modelsCache.models };
-  // Direct fetch first (Chrome — no tab); on throw (Firefox mixed content) fall back to the dashboard tab.
-  try {
-    const mr = await fetch(OMNI_BASE + "/v1/models");
-    if (mr.ok) { const models = (await mr.json()).data || []; _modelsCache = { at: Date.now(), models }; return { ok: true, models }; }
-    return { ok: false };
-  } catch {
-    const r = await runInDash(fetchModelsInPage);
-    if (r && r.ok && Array.isArray(r.models)) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
-    return { ok: false };
+  if (CAN_DIRECT_FETCH) {
+    // Chrome: direct, no tab. A non-ok response is a real answer (don't tab-retry); only a throw falls through.
+    try {
+      const mr = await fetch(OMNI_BASE + "/v1/models");
+      if (mr.ok) { const models = (await mr.json()).data || []; _modelsCache = { at: Date.now(), models }; return { ok: true, models }; }
+      return { ok: false };
+    } catch {}
   }
+  const r = await runInDash(fetchModelsInPage); // Firefox: via the dashboard tab (a direct fetch hangs)
+  if (r && r.ok && Array.isArray(r.models)) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
+  return { ok: false };
 }
 // One real completion against the provider's first model. 5xx / network → ONE retry (transient
 // upstream); 4xx → real auth verdict, no retry. Shared by single probe, batch, and health sweep.
@@ -394,20 +403,23 @@ function chatProbeInPage(modelId) {
 // Direct completion probe first (Chrome — no tab); on throw (Firefox mixed content) fall back to the tab.
 async function chatProbe(modelId) {
   const body = JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 });
-  try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
-      method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
-    }).finally(() => clearTimeout(to));
-    let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
-    return { fetched: true, ok: r.ok, status: r.status, msg };
-  } catch (e) {
-    if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: t("bg_probeAbort") };
-    const r = await runInDash(chatProbeInPage, [modelId], 32000); // direct threw → Firefox mixed content → tab
-    if (r && r.fetched) return r;
-    return { fetched: true, netErr: true, msg: String((r && r.error) || e).slice(0, 120) };
+  if (CAN_DIRECT_FETCH) {
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 30000);
+      const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
+        method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
+      }).finally(() => clearTimeout(to));
+      let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
+      return { fetched: true, ok: r.ok, status: r.status, msg };
+    } catch (e) {
+      if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: t("bg_probeAbort") };
+      // any other direct error → fall through to the tab
+    }
   }
+  const r = await runInDash(chatProbeInPage, [modelId], 32000); // Firefox: via the tab (a direct fetch hangs)
+  if (r && r.fetched) return r;
+  return { fetched: true, netErr: true, msg: String((r && r.error) || "").slice(0, 120) };
 }
 async function probeModel(models, slug) {
   const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
