@@ -94,6 +94,11 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
     "both disk captures rehydrated into session"
   );
   assert.deepEqual(pushed, ["chatgpt-web"], "re-pushed the connection OmniRoute still has — and did NOT resurrect the deleted one");
+  // It runs unattended at launch: without a record the user cannot tell whether it did anything.
+  const rec = chrome.storage.local._dump().last_recovery;
+  assert.ok(rec, "restartRecovery leaves a record the popup can show");
+  assert.equal(rec.restored, 1, "record counts what was actually restored");
+  assert.equal(rec.unreachable, false, "record knows the server was reachable");
 }
 
 // ── 6. restartRecovery is a no-op when persistence is off (no secrets to restore) ────────────────

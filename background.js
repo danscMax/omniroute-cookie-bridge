@@ -812,14 +812,22 @@ async function restartRecovery() {
   // existence, so skip the re-push rather than blind-recreate; the health sweep below still runs.
   const conns = await readConnections();
   const existing = conns.unreachable ? null : new Set(Object.keys(conns.byProvider || {}));
+  const restored = [];
   if (existing) {
     for (const k of live) {
       const slug = (OMNI_WEB_MAP[k.slice(4)] || {}).slug;
       if (slug && existing.has(slug)) {
-        try { await sendToOmni(k.slice(4)); } catch (e) { /* one bad slug must not stop the rest */ }
+        try {
+          const r = await sendToOmni(k.slice(4));
+          if (r && r.ok) restored.push(slug);
+        } catch (e) { /* one bad slug must not stop the rest */ }
       }
     }
   }
+  // Leave a trace: this runs unattended at browser launch, so without a record the user cannot tell
+  // whether the thing that exists to save their morning did anything. The popup renders it next to
+  // "Последняя проверка" (same `ago()` line, one glance).
+  await LOC.set({ last_recovery: { at: Date.now(), restored: restored.length, purged: expired.length, unreachable: !existing } });
   // Refresh the badge after re-push — but honor the user's choice if they disabled health checks.
   if (st.sweep) { try { await healthSweep(true); } catch (e) { /* badge refresh is best-effort */ } }
 }

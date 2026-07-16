@@ -745,8 +745,14 @@ async function loadSettings() {
   $("setSummary").textContent = connTotal
     ? `🔗 ${connTotal} соединений в ${Object.keys(conns).length} провайдерах`
     : `Каталог: web ${OMNI_WEB.length} · apikey ${OMNI_APIKEY.length} · oauth ${OMNI_OAUTH.length}`;
-  const { last_sweep } = await chrome.storage.local.get("last_sweep");
+  const { last_sweep, last_recovery: rec } = await chrome.storage.local.get(["last_sweep", "last_recovery"]);
   $("lastSweep").textContent = last_sweep ? "Последняя проверка: " + ago(last_sweep) : "Фоновая проверка ещё не запускалась.";
+  // restartRecovery runs unattended at browser launch — say what it did, or you can't tell it ran.
+  $("lastRecovery").textContent = !rec
+    ? "Восстановление сессий на старте ещё не запускалось."
+    : rec.unreachable
+      ? `↻ На старте OmniRoute был недоступен — ничего не восстановлено · ${ago(rec.at)}`
+      : `↻ Восстановлено на старте: ${rec.restored} · ${ago(rec.at)}` + (rec.purged ? ` · протухших удалено: ${rec.purged}` : "");
 }
 function saveSettings() {
   applyTheme($("setTheme").value);
