@@ -123,7 +123,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "connections": readConnections().then(send); return true;
     // Reachability check via the dashboard tab (runInDash) — NOT a direct fetch: Firefox blocks a direct
     // http fetch from the extension's secure moz-extension context to the http loopback (mixed content).
-    case "ping": pingGateway().then((ok) => send({ ok })).catch(() => send({ ok: false })); return true;
+    case "ping": pingGateway().then((res) => send(res)).catch((e) => send({ ok: false, detail: String(e).slice(0, 120) })); return true;
     case "deleteConn": deleteConn(req.id).then(send); return true;
     case "updateConn": updateConn(req.id, req.patch).then(send); return true;
     case "getProbes":
@@ -231,10 +231,13 @@ async function requireGateway() {
 async function pingGateway() {
   if (CAN_DIRECT_FETCH) {
     // Chrome: a direct fetch is fine and needs no tab. On any error, fall through to the tab path.
-    try { return !!(await fetch(OMNI_BASE + "/api/providers", { method: "GET" })); } catch {}
+    try { if (await fetch(OMNI_BASE + "/api/providers", { method: "GET" })) return { ok: true }; } catch {}
   }
   const r = await runInDash(gatewayProbeInPage); // Firefox (and Chrome-fallback): via the dashboard tab
-  return !!(r && r.ok === true);
+  if (r && r.ok === true) return { ok: true };
+  // Surface WHY: runInDash already localises the failure (tab open / injection / timeout / empty result).
+  // The popup shows this instead of a bare "недоступен", so the real cause is visible without devtools.
+  return { ok: false, detail: (r && (r.error || (r.status ? "HTTP " + r.status : null))) || t("bg_noAnswer") };
 }
 
 // POST /api/providers (create only — NO lying auto-test; the popup probes for real separately).

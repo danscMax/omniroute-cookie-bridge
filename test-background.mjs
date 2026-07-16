@@ -226,7 +226,8 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
     fetch: () => new Promise(() => {}), // never resolves — the Firefox loopback hang
   });
   const r = await Promise.race([sandbox.pingGateway(), tick(600).then(() => "HUNG")]);
-  assert.equal(r, true, "pingGateway resolves via the tab without awaiting the hanging direct fetch");
+  assert.notEqual(r, "HUNG", "pingGateway resolves via the tab without awaiting the hanging direct fetch");
+  assert.equal(r.ok, true, "and reports the server reachable");
 }
 
 // ── 13. probes don't hang either (fetchModels/chatProbe go to the tab in Firefox) ────────────────

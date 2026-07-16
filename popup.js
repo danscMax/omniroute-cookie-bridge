@@ -561,7 +561,8 @@ async function probeServer() {
   // http loopback server as mixed content (Chrome exempts loopback). The tab path is http→http.
   const r = await msg({ action: "ping" }).catch(() => null);
   if (r && r.ok) { serverOnline = true; dot.className = "dot ok"; txt.textContent = "127.0.0.1:20128"; }
-  else { serverOnline = false; dot.className = "dot bad"; txt.textContent = t("popup_srvDown"); }
+  // Show the real reason (from runInDash: tab open / injection / timeout) instead of a bare "недоступен".
+  else { serverOnline = false; dot.className = "dot bad"; txt.textContent = (r && r.detail) ? "127.0.0.1:20128 — " + r.detail : t("popup_srvDown"); }
   setFooter();
 }
 async function detectActiveTab() {
