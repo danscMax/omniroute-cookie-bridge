@@ -72,4 +72,13 @@ assert.equal(document.querySelectorAll("#manageSection .prob.okrow").length, 2, 
 const toggleLabels = [...document.querySelectorAll("#manageSection .prob button")].map((b) => b.textContent);
 assert.ok(toggleLabels.includes("Включить"), "disabled connection offers 'Включить'");
 assert.ok(toggleLabels.includes("Выключить"), "active connection offers 'Выключить'");
-console.log(`render OK — 0 JS errors, oauth cards=${oauthCards}, web chips=${webChips}, manager rows=${rows.length}, key controls present`);
+// Settings panel: the sweep opt-out offers one chip per provider the background sweep would probe
+// (i.e. per provider with connections — claude-web + gemini in the fixture).
+document.querySelector("#settingsBtn").click();
+await new Promise((r) => setTimeout(r, 50));
+const skipChips = [...document.querySelectorAll("#sweepSkipChips .chip")].map((c) => c.textContent);
+assert.equal(skipChips.length, 2, `a sweep opt-out chip per connected provider (got ${JSON.stringify(skipChips)})`);
+assert.ok(document.querySelector("#setPersist"), "#setPersist toggle present");
+assert.ok(document.querySelector("#lastRecovery"), "#lastRecovery line present");
+
+console.log(`render OK — 0 JS errors, oauth cards=${oauthCards}, web chips=${webChips}, manager rows=${rows.length}, sweep-skip chips=${skipChips.length}, key controls present`);

@@ -183,4 +183,20 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.equal(results["kimi-web"].alive, null, "429 → unknown, NOT dead (the account is authenticated, just throttled)");
 }
 
-console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead");
+// ── 11. sweepSkip: the unattended sweep must not spend a request on an opted-out provider ───────
+{
+  const probed = [];
+  const { chrome, sandbox } = boot({
+    settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: ["kimi-web"] },
+    dash: {
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }, { id: "kimi-web/k2" }] }),
+      chatProbeInPage: (modelId) => { probed.push(modelId.split("/")[0]); return { fetched: true, ok: true, status: 200, msg: "" }; },
+    },
+  });
+  await chrome.storage.local.set({ conn_slugs: ["chatgpt-web", "kimi-web"], last_active: Date.now() });
+  await sandbox.healthSweep(true);
+  assert.deepEqual(probed, ["chatgpt-web"], "opted-out provider is never probed by the background sweep");
+  assert.ok(!chrome.storage.local._dump()["probe_kimi-web"], "and gets no stale verdict written for it");
+}
+
+console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured");

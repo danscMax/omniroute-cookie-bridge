@@ -8,6 +8,8 @@ const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
 // (e.g. chatgpt.com/auth/login) — it was generated for all 23 and used by nothing; the homepage is one
 // extra click away from the thing they actually came to do. Falls back to the site if a slug lacks one.
 const loginTarget = (w) => (w && (w.loginUrl || w.site)) || "";
+// One label lookup across the three registries (a slug lives in exactly one of them).
+const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || OMNI_APIKEY_MAP[slug] || {}).label) || slug;
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
@@ -740,6 +742,7 @@ async function loadSettings() {
   $("setSweepMin").value = String(s.sweepMin || 15);
   $("setNotify").checked = !!s.notify;
   $("setPersist").checked = s.persistSessions !== false; // default on
+  renderSweepSkip(s.sweepSkip || []);
   $("setTheme").value = s.theme || "auto"; applyTheme(s.theme);
   try { $("setVer").textContent = "v" + chrome.runtime.getManifest().version; } catch (e) {}
   $("setSummary").textContent = connTotal
@@ -753,6 +756,27 @@ async function loadSettings() {
     : rec.unreachable
       ? `↻ На старте OmniRoute был недоступен — ничего не восстановлено · ${ago(rec.at)}`
       : `↻ Восстановлено на старте: ${rec.restored} · ${ago(rec.at)}` + (rec.purged ? ` · протухших удалено: ${rec.purged}` : "");
+}
+// One chip per provider the background sweep would probe (i.e. the ones with connections — exactly
+// what conn_slugs feeds it). Struck-through = opted out. Toggling saves only sweepSkip; applySettings
+// merges it into the rest, so this can't clobber the checkboxes above.
+function renderSweepSkip(skip) {
+  const box = $("sweepSkipChips"); box.textContent = "";
+  const slugs = Object.keys(conns).sort();
+  if (!slugs.length) { box.append(el("span", "hint-sm", "Пока нечего — нет соединений.")); return; }
+  const set = new Set(skip);
+  for (const slug of slugs) {
+    const off = set.has(slug);
+    const c = el("button", "chip" + (off ? " off" : ""), providerLabel(slug));
+    c.title = off ? "Пропускается в фоне — нажми, чтобы снова проверять" : "Проверяется в фоне — нажми, чтобы пропускать";
+    c.setAttribute("aria-pressed", String(off));
+    c.onclick = async () => {
+      const next = off ? [...set].filter((x) => x !== slug) : [...set, slug];
+      const r = await msg({ action: "setSettings", settings: { sweepSkip: next } });
+      renderSweepSkip((r && r.settings && r.settings.sweepSkip) || next);
+    };
+    box.append(c);
+  }
 }
 function saveSettings() {
   applyTheme($("setTheme").value);

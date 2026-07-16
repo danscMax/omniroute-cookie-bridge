@@ -34,6 +34,8 @@
       <label class="setrow"><span>Фоновая проверка здоровья</span><input type="checkbox" id="setSweep" /></label>
       <label class="setrow"><span>Интервал проверки</span><select id="setSweepMin"><option value="5">5 мин</option><option value="15">15 мин</option><option value="30">30 мин</option><option value="60">60 мин</option></select></label>
       <label class="setrow"><span>Уведомления о поломках</span><input type="checkbox" id="setNotify" /></label>
+      <div class="setrow" style="align-items: flex-start"><span>Не проверять в фоне</span><div class="chips" id="sweepSkipChips"></div></div>
+      <div class="hint-sm">Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно.</div>
       <label class="setrow"><span>Хранить сессии на диске (оживлять на старте)</span><input type="checkbox" id="setPersist" /></label>
       <div class="hint-sm">Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти.</div>
       <label class="setrow"><span>Тема</span><select id="setTheme"><option value="auto">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>

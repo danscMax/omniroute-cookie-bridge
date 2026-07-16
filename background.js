@@ -21,7 +21,11 @@ const SEC = chrome.storage.session; // secrets: cap_<key>, apikey_aistudio, oaut
 const LOC = chrome.storage.local;   // non-secret: probe_<slug>, sel_apikey, health_dead, conn_slugs, settings, last_sweep
 
 // User settings (persisted, non-secret). Defaults chosen for "helpful but not costly".
-const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true };
+// sweepSkip: provider slugs the unattended sweep must not touch. The sweep spends a REAL 1-token
+// completion per provider every cycle, which costs money on paid tiers and trips rate-limits on some
+// (kiro 429) — and for a web-session provider a robotic request every 15 min is also ban-surface.
+// Opting one out keeps it usable via the popup's manual "Проверить все" without paying for it hourly.
+const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: [] };
 
 // How long a mirrored capture may sit on disk. Session cookies live "hours to days", so one that hasn't
 // been refreshed in a week is a corpse: re-pushing it can't authenticate anything, and keeping it is a
@@ -469,7 +473,11 @@ async function healthSweep(force = false) {
   const { conn_slugs, last_active } = await LOC.get(["conn_slugs", "last_active"]);
   // Don't burn quota unattended forever: only sweep if the popup was used in the last 24h.
   if (!force && last_active && Date.now() - last_active > 24 * 60 * 60 * 1000) return;
-  const slugs = conn_slugs || [];
+  // Honour the per-provider opt-out (settings.sweepSkip): an unattended probe costs a real completion,
+  // so a provider the user marked "don't probe" must not be touched here. The manual "Проверить все"
+  // ignores this list on purpose — that run is user-initiated and its cost is a deliberate choice.
+  const skip = new Set(st.sweepSkip || []);
+  const slugs = (conn_slugs || []).filter((s) => !skip.has(s));
   if (!slugs.length) { await LOC.set({ health_dead: [], last_sweep: Date.now() }); updateBadge(); return; } // clear a stale red badge
   const { results } = await probeAll(slugs, false); // emit=false: unattended — don't drive the popup progress bar
   const dead = Object.keys(results).filter((s) => results[s].alive === false);

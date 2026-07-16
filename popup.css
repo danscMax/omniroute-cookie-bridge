@@ -117,6 +117,8 @@ a.link:hover { text-decoration: underline; }
 .chip { font-size: 11px; background: var(--surface); border: 1px solid var(--line); color: var(--mut); border-radius: 9px; padding: 6px 9px; cursor: pointer; }
 .chip:hover { border-color: var(--accent); color: var(--tx); }
 .chip.has { border-color: var(--ok); color: var(--ok); }
+/* opted out of the unattended sweep — struck through, not just colour (colour alone isn't a signal) */
+.chip.off { border-style: dashed; text-decoration: line-through; opacity: .65; }
 .chip .g { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; margin-right: 4px; }
 
 /* live connections line on a card */
