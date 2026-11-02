@@ -33,11 +33,11 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 1. capture lands in session, and is mirrored to disk when persistSessions is on ─────────────
 {
   const { chrome } = boot();
-  fireCapture(chrome, xhr("https://chatgpt.com/backend-api/conversation", "session=abc123; other=1"));
+  fireCapture(chrome, xhr("https://claude.ai/backend-api/conversation", "session=abc123; other=1"));
   await tick();
-  assert.deepEqual(capsIn(chrome.storage.session), ["cap_chatgpt-web"], "capture stored in session");
-  assert.deepEqual(capsIn(chrome.storage.local), ["cap_chatgpt-web"], "capture MIRRORED to disk (persistSessions default on)");
-  const disk = chrome.storage.local._dump()["cap_chatgpt-web"];
+  assert.deepEqual(capsIn(chrome.storage.session), ["cap_claude-web"], "capture stored in session");
+  assert.deepEqual(capsIn(chrome.storage.local), ["cap_claude-web"], "capture MIRRORED to disk (persistSessions default on)");
+  const disk = chrome.storage.local._dump()["cap_claude-web"];
   assert.equal(disk.cookie, "session=abc123; other=1", "disk copy carries the credential");
   assert.ok(disk.accountId, "disk copy carries a stable accountId");
 }
@@ -45,16 +45,16 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 2. persistSessions OFF → nothing is written to disk ─────────────────────────────────────────
 {
   const { chrome } = boot({ settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: false } });
-  fireCapture(chrome, xhr("https://chatgpt.com/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
   await tick();
-  assert.deepEqual(capsIn(chrome.storage.session), ["cap_chatgpt-web"], "capture still kept in memory");
+  assert.deepEqual(capsIn(chrome.storage.session), ["cap_claude-web"], "capture still kept in memory");
   assert.deepEqual(capsIn(chrome.storage.local), [], "NOTHING mirrored to disk when the toggle is off");
 }
 
 // ── 3. turning persistSessions OFF purges the copies already on disk ────────────────────────────
 {
   const { chrome, sandbox } = boot();
-  fireCapture(chrome, xhr("https://chatgpt.com/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
   await tick();
   assert.equal(capsIn(chrome.storage.local).length, 1, "precondition: a copy is on disk");
   await sandbox.applySettings({ persistSessions: false });
@@ -65,10 +65,10 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 4. "clear" removes the capture from BOTH stores ─────────────────────────────────────────────
 {
   const { chrome } = boot();
-  fireCapture(chrome, xhr("https://chatgpt.com/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
   await tick();
   const onMessage = chrome._listeners.message[0];
-  await new Promise((done) => onMessage({ action: "clear", providerKey: "chatgpt-web" }, {}, done));
+  await new Promise((done) => onMessage({ action: "clear", providerKey: "claude-web" }, {}, done));
   assert.deepEqual(capsIn(chrome.storage.session), [], "cleared from memory");
   assert.deepEqual(capsIn(chrome.storage.local), [], "cleared from disk too");
 }
@@ -78,24 +78,24 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   const pushed = [];
   const { chrome, sandbox } = boot({
     dash: {
-      // OmniRoute knows chatgpt-web; perplexity-web was deleted in the dashboard.
-      readConnectionsInPage: () => ({ ok: true, connections: [{ provider: "chatgpt-web", id: "c1", name: "ChatGPT Web · acc", testStatus: "error" }] }),
+      // OmniRoute knows claude-web; perplexity-web was deleted in the dashboard.
+      readConnectionsInPage: () => ({ ok: true, connections: [{ provider: "claude-web", id: "c1", name: "Claude Web · acc", testStatus: "error" }] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true, id: "c1" }; },
       gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
     },
   });
   // Disk survived a browser restart; session storage is empty (as it is on a cold start).
   await chrome.storage.local.set({
-    "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", label: "ChatGPT Web", cookie: "s=1", token: "", cookieCount: 1, at: Date.now(), accountId: "acc" },
+    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "s=1", token: "", cookieCount: 1, at: Date.now(), accountId: "acc" },
     "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "s=2", token: "", cookieCount: 1, at: Date.now(), accountId: "acc2" },
   });
   await sandbox.restartRecovery();
   assert.deepEqual(
     capsIn(chrome.storage.session).sort(),
-    ["cap_chatgpt-web", "cap_perplexity-web"],
+    ["cap_claude-web", "cap_perplexity-web"],
     "both disk captures rehydrated into session"
   );
-  assert.deepEqual(pushed, ["chatgpt-web"], "re-pushed the connection OmniRoute still has — and did NOT resurrect the deleted one");
+  assert.deepEqual(pushed, ["claude-web"], "re-pushed the connection OmniRoute still has — and did NOT resurrect the deleted one");
   // It runs unattended at launch: without a record the user cannot tell whether it did anything.
   const rec = chrome.storage.local._dump().last_recovery;
   assert.ok(rec, "restartRecovery leaves a record the popup can show");
@@ -110,7 +110,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
     settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: false },
     dash: { postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; } },
   });
-  await chrome.storage.local.set({ "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", cookie: "s=1", at: Date.now() } });
+  await chrome.storage.local.set({ "cap_claude-web": { provider: "claude-web", slug: "claude-web", cookie: "s=1", at: Date.now() } });
   await sandbox.restartRecovery();
   assert.deepEqual(pushed, [], "persistence off → restartRecovery pushes nothing");
 }
@@ -124,7 +124,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; },
     },
   });
-  await chrome.storage.local.set({ "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", cookie: "s=1", at: Date.now(), accountId: "acc" } });
+  await chrome.storage.local.set({ "cap_claude-web": { provider: "claude-web", slug: "claude-web", cookie: "s=1", at: Date.now(), accountId: "acc" } });
   await sandbox.restartRecovery();
   assert.deepEqual(pushed, [], "can't verify what exists → push nothing rather than recreate blindly");
 }
@@ -135,7 +135,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   const { chrome, sandbox } = boot({
     dash: {
       readConnectionsInPage: () => ({ ok: true, connections: [
-        { provider: "chatgpt-web", id: "c1", name: "ChatGPT Web · a", testStatus: "error" },
+        { provider: "claude-web", id: "c1", name: "Claude Web · a", testStatus: "error" },
         { provider: "perplexity-web", id: "c2", name: "Perplexity Web · b", testStatus: "error" },
       ] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; },
@@ -144,13 +144,13 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   });
   const DAY = 24 * 60 * 60 * 1000;
   await chrome.storage.local.set({
-    "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", label: "ChatGPT Web", cookie: "fresh", token: "", at: Date.now() - 2 * DAY, accountId: "a" },
+    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "fresh", token: "", at: Date.now() - 2 * DAY, accountId: "a" },
     "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "corpse", token: "", at: Date.now() - 8 * DAY, accountId: "b" },
   });
   await sandbox.restartRecovery();
-  assert.deepEqual(capsIn(chrome.storage.local), ["cap_chatgpt-web"], "capture older than the 7d TTL is purged from disk");
-  assert.deepEqual(capsIn(chrome.storage.session), ["cap_chatgpt-web"], "the corpse is never hydrated into memory");
-  assert.deepEqual(pushed, ["chatgpt-web"], "only the still-plausible capture is re-pushed");
+  assert.deepEqual(capsIn(chrome.storage.local), ["cap_claude-web"], "capture older than the 7d TTL is purged from disk");
+  assert.deepEqual(capsIn(chrome.storage.session), ["cap_claude-web"], "the corpse is never hydrated into memory");
+  assert.deepEqual(pushed, ["claude-web"], "only the still-plausible capture is re-pushed");
 }
 
 // ── 9. probeAll: real verdicts, and each one persisted AS IT LANDS ──────────────────────────────
@@ -159,18 +159,18 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 {
   const { chrome, sandbox } = boot({
     dash: {
-      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }, { id: "kimi-web/k2" }] }),
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "claude-web/gpt-x" }, { id: "kimi-web/k2" }] }),
       chatProbeInPage: (modelId) =>
-        modelId.startsWith("chatgpt-web/")
+        modelId.startsWith("claude-web/")
           ? { fetched: true, ok: true, status: 200, msg: "" }
           : { fetched: true, ok: false, status: 401, msg: "unauthorized" },
     },
   });
-  const { results } = await sandbox.probeAll(["chatgpt-web", "kimi-web"], false);
-  assert.equal(results["chatgpt-web"].alive, true, "200 → alive");
+  const { results } = await sandbox.probeAll(["claude-web", "kimi-web"], false);
+  assert.equal(results["claude-web"].alive, true, "200 → alive");
   assert.equal(results["kimi-web"].alive, false, "401 → dead (a real auth verdict)");
   const stored = chrome.storage.local._dump();
-  assert.ok(stored["probe_chatgpt-web"] && stored["probe_kimi-web"], "every verdict persisted as it landed (an SW kill mid-sweep can't erase the run)");
+  assert.ok(stored["probe_claude-web"] && stored["probe_kimi-web"], "every verdict persisted as it landed (an SW kill mid-sweep can't erase the run)");
 }
 
 // ── 10. a 429 is throttling, not death — never mark the account dead on it ──────────────────────
@@ -189,7 +189,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 {
   const { chrome, sandbox } = boot();
   await chrome.storage.local.set({
-    "cap_chatgpt-web": { provider: "chatgpt-web", slug: "chatgpt-web", cookie: "corpse", at: Date.now() - 30 * 24 * 60 * 60 * 1000, accountId: "a" },
+    "cap_claude-web": { provider: "claude-web", slug: "claude-web", cookie: "corpse", at: Date.now() - 30 * 24 * 60 * 60 * 1000, accountId: "a" },
   });
   await sandbox.restartRecovery();
   assert.deepEqual(capsIn(chrome.storage.local), [], "the corpse is gone");
@@ -205,13 +205,13 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   const { chrome, sandbox } = boot({
     settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: ["kimi-web"] },
     dash: {
-      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }, { id: "kimi-web/k2" }] }),
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "claude-web/gpt-x" }, { id: "kimi-web/k2" }] }),
       chatProbeInPage: (modelId) => { probed.push(modelId.split("/")[0]); return { fetched: true, ok: true, status: 200, msg: "" }; },
     },
   });
-  await chrome.storage.local.set({ conn_slugs: ["chatgpt-web", "kimi-web"], last_active: Date.now() });
+  await chrome.storage.local.set({ conn_slugs: ["claude-web", "kimi-web"], last_active: Date.now() });
   await sandbox.healthSweep(true);
-  assert.deepEqual(probed, ["chatgpt-web"], "opted-out provider is never probed by the background sweep");
+  assert.deepEqual(probed, ["claude-web"], "opted-out provider is never probed by the background sweep");
   assert.ok(!chrome.storage.local._dump()["probe_kimi-web"], "and gets no stale verdict written for it");
 }
 
@@ -234,14 +234,14 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 {
   const { sandbox } = boot({
     dash: {
-      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "chatgpt-web/gpt-x" }] }),
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "claude-web/gpt-x" }] }),
       chatProbeInPage: () => ({ fetched: true, ok: true, status: 200, msg: "" }),
     },
     fetch: () => new Promise(() => {}), // hang the direct path
   });
-  const { results } = await Promise.race([sandbox.probeAll(["chatgpt-web"], false), tick(800).then(() => ({ results: "HUNG" }))]);
+  const { results } = await Promise.race([sandbox.probeAll(["claude-web"], false), tick(800).then(() => ({ results: "HUNG" }))]);
   assert.notEqual(results, "HUNG", "probeAll completes via the tab without awaiting the hanging direct fetch");
-  assert.equal(results["chatgpt-web"].alive, true, "and still returns the real verdict");
+  assert.equal(results["claude-web"].alive, true, "and still returns the real verdict");
 }
 
 console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured, no direct-fetch hang (Firefox)");
