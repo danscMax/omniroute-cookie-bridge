@@ -221,9 +221,6 @@
   "web_sendAll": {
     "message": "Отправить все ($1)"
   },
-  "web_sendAllSplit": {
-    "message": "$1 обновит · $2 создаст"
-  },
   "web_fixDead": {
     "message": "🔄 Обновить только упавшие ($1)"
   },
@@ -1123,5 +1120,29 @@
   },
   "bg_noRequest": {
     "message": "сайт не прислал ни одного запроса за 15 с"
+  },
+  "det_loginWorking": {
+    "message": "Проверяю вход…"
+  },
+  "det_loginPushed": {
+    "message": "Вход есть — сессия отправлена"
+  },
+  "det_loginPushedDead": {
+    "message": "Сессия отправлена, но проверка не прошла"
+  },
+  "det_loginOpened": {
+    "message": "Открыл сайт — войди там"
+  },
+  "set_size": {
+    "message": "Размер окна"
+  },
+  "set_sizeS": {
+    "message": "Компактное"
+  },
+  "set_sizeM": {
+    "message": "Широкое"
+  },
+  "set_sizeL": {
+    "message": "Большое"
   }
 }

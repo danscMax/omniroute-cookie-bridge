@@ -346,3 +346,7 @@ table.stat tr.dtr .det { border: none; border-radius: 0; margin: 0; background: 
 .rep-row.two { flex-wrap: wrap; row-gap: 0; }
 .rep-row.two .pn { flex: 0 1 auto; }
 .rep-sub { order: 9; flex: 1 0 100%; padding-left: 25px; font-size: 10.5px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* card action rows wrap instead of pushing ✕ out of the card */
+.actions { flex-wrap: wrap; }
+.actions > button { min-width: 0; }
+.actions .grow { min-width: 96px; }

@@ -221,9 +221,6 @@
   "web_sendAll": {
     "message": "Send all ($1)"
   },
-  "web_sendAllSplit": {
-    "message": "$1 will update · $2 will be created"
-  },
   "web_fixDead": {
     "message": "🔄 Refresh only the broken ones ($1)"
   },
@@ -1123,5 +1120,29 @@
   },
   "bg_noRequest": {
     "message": "the site sent no request within 15 s"
+  },
+  "det_loginWorking": {
+    "message": "Checking login…"
+  },
+  "det_loginPushed": {
+    "message": "Logged in — session sent"
+  },
+  "det_loginPushedDead": {
+    "message": "Session sent but the check failed"
+  },
+  "det_loginOpened": {
+    "message": "Opened the site — log in there"
+  },
+  "set_size": {
+    "message": "Window size"
+  },
+  "set_sizeS": {
+    "message": "Compact"
+  },
+  "set_sizeM": {
+    "message": "Wide"
+  },
+  "set_sizeL": {
+    "message": "Large"
   }
 }

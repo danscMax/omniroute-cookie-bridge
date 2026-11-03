@@ -78,9 +78,17 @@ chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
   SEC.get(capKey).then((cur) => {
     const prev = cur[capKey];
     if (prev && prev.cookie === cookie && prev.token === token) { maybeAutoAdd(provider.key); return; }
+    // Analytics cookies change on nearly every request; only a change of the SESSION part is a new
+    // capture. Otherwise keep `at` (so a sent capture doesn't pop back into "ready to send" every few
+    // seconds) and just refresh the stored header, at most once a minute.
+    const sk = sessionKey(provider, cookie, token);
+    if (prev && sk && prev.sessKey === sk) {
+      if (Date.now() - (prev.seenAt || prev.at) > 60000) SEC.set({ [capKey]: { ...prev, cookie, seenAt: Date.now() } });
+      maybeAutoAdd(provider.key); return;
+    }
     const cap = {
       provider: provider.key, slug: provider.slug, label: provider.label,
-      cookie, token, cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now(),
+      cookie, token, cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now(), sessKey: sk,
     };
     cap.accountId = omniAccountId(omniBuildCredential(provider, cap)); // compute once at capture, not per refresh
     cap.email = omniAccountEmail(omniBuildCredential(provider, cap));
@@ -126,6 +134,27 @@ async function maybeAutoAdd(key) {
     try { chrome.runtime.sendMessage({ type: "autoAdded", key, ok: !!(r && r.ok) }); } catch (e) { /* no popup open */ }
   } finally { autoAdding.delete(key); }
 }
+// "Войти заново": already logged in in this browser? Then there is nothing to log into — take the session
+// from the cookie store and push it now. Only otherwise open the SITE (catalog loginUrls rot: perplexity.ai
+// /login is a 404) and let the cookie watcher finish once the user logs in.
+async function loginAgain(key) {
+  const p = OMNI_WEB_MAP[key]; if (!p) return { ok: false };
+  if (p.cred.t === "cookie") {
+    const cap = await captureFromStore(p);
+    if (hasSession(p, cap)) {
+      const r = await sendToOmni(key);
+      if (r && r.ok) {
+        await LOC.set({ ["sent_" + key]: Date.now() });
+        const pr = await realProbe(p.slug);
+        return { ok: true, pushed: true, connName: r.connName, updated: r.updated, alive: pr.alive, detail: pr.detail };
+      }
+      return { ok: false, error: (r && r.error) || "" };
+    }
+  }
+  await LOC.set({ ["autoadd_" + key]: Date.now() });
+  await chrome.tabs.create({ url: p.site, active: true });
+  return { ok: true, opened: true };
+}
 function toast(message) {
   try { chrome.notifications.create("omni_" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png", title: "OmniRoute Bridge", message }); } catch (e) { /* no notifications permission */ }
 }
@@ -134,10 +163,19 @@ function toast(message) {
 // whose catalog lists no named cookie (header/localStorage-only) need the Bearer token instead.
 // Session cookie names the generated catalog doesn't carry (its `sources` is empty for these).
 const SESSION_COOKIE_EXTRA = { huggingchat: ["hf-chat", "token"] };
+const sessionNames = (p) => p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []);
+// The part of a credential that IS the session: named session cookies (incl. next-auth chunks) + token.
+// "" when the provider has no known session cookie → callers fall back to comparing the whole header.
+function sessionKey(p, cookie, token) {
+  const names = sessionNames(p);
+  if (!names.length) return token || "";
+  const parts = String(cookie || "").split(";").map((x) => x.trim()).filter((x) => names.some((n) => x.startsWith(n + "=") || x.startsWith(n + ".")));
+  return parts.length ? parts.sort().join("; ") + "|" + (token || "") : "";
+}
 function hasSession(p, cap) {
   if (!cap) return false;
   if (p.cred && p.cred.t === "token" && cap.token) return true; // DeepSeek: the Bearer token IS the session
-  const names = p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []);
+  const names = sessionNames(p);
   if (!names.length) return !!cap.token;
   const have = new Set(String(cap.cookie || "").split(";").map((x) => x.trim()).filter((x) => /=./.test(x)).map((x) => x.slice(0, x.indexOf("="))));
   // next-auth (Perplexity) splits a big session cookie into "<name>.0", "<name>.1", …
@@ -168,6 +206,8 @@ async function captureFromStore(p) {
   const cap = { provider: p.key, slug: p.slug, label: p.label, cookie, token: (prev && prev.token) || "", cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now() };
   cap.accountId = omniAccountId(omniBuildCredential(p, cap));
   cap.email = omniAccountEmail(omniBuildCredential(p, cap));
+  cap.sessKey = sessionKey(p, cookie, cap.token);
+  if (prev && prev.sessKey && prev.sessKey === cap.sessKey) cap.at = prev.at; // same session — not a "new" capture
   await SEC.set({ ["cap_" + p.key]: cap });
   const st = await getSettings(); if (st.persistSessions) await LOC.set({ ["cap_" + p.key]: cap });
   return cap;
@@ -350,6 +390,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "models": fetchModels().then((r) => send({ ok: r.ok, models: (r.models || []).map((m) => ({ id: m.id, owned_by: m.owned_by || "" })) })); return true;
     case "chat": chatOnce(req.model, req.messages).then(send); return true;
     case "autoAdd": LOC.set({ ["autoadd_" + req.key]: Date.now() }).then(() => send({ ok: true })); return true;
+    case "loginAgain": loginAgain(req.key).then(send); return true;
     case "getStats":
       LOC.get(null).then((all) => {
         const hist = {}, sites = {};

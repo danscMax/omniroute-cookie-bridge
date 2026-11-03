@@ -21,10 +21,9 @@ function applyI18n() {
 applyI18n();
 function ago(ms) { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return t("popup_agoSec", [String(s)]); const m = Math.round(s / 60); if (m < 60) return t("popup_agoMin", [String(m)]); return t("popup_agoHour", [String(Math.round(m / 60))]); }
 const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
-// Where to send someone whose session died. The catalog carries a real login URL per web provider
-// (e.g. chatgpt.com/auth/login) — it was generated for all 23 and used by nothing; the homepage is one
-// extra click away from the thing they actually came to do. Falls back to the site if a slug lacks one.
-const loginTarget = (w) => (w && (w.loginUrl || w.site)) || "";
+// Where to send someone whose session died: the SITE. The catalog's generated loginUrls rot (perplexity.ai
+// /login is a 404 since 2026-11) and a logged-in user lands on the app from the homepage anyway.
+const loginTarget = (w) => (w && w.site) || "";
 // One label lookup across the three registries (a slug lives in exactly one of them).
 const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || OMNI_APIKEY_MAP[slug] || {}).label) || slug;
 
@@ -228,8 +227,7 @@ function renderWeb() {
     const ttl = el("div", "grp-title", t("web_readyTitle")); ttl.append(el("span", "n", String(capd.length))); cap.append(ttl);
     if (capd.length > 1) {
       // Predict how many of the batch will UPDATE an existing connection vs CREATE a new one.
-      const upd = capd.filter((p) => willUpdate(p.slug, p.label, caps[p.key].accountId)).length;
-      const all = el("button", "bulk", t("web_sendAll", [String(capd.length)]) + (upd ? " — " + t("web_sendAllSplit", [String(upd), String(capd.length - upd)]) : ""));
+      const all = el("button", "bulk", t("web_sendAll", [String(capd.length)]));
       all.addEventListener("click", () => sendAll(capd, all));
       cap.append(all);
     }
@@ -278,7 +276,7 @@ async function sendAll(list, btn) {
   }
   btn.textContent = t("web_sendDone", [String(ok), String(list.length)]);
   await loadConnections();
-  setTimeout(() => { btn.disabled = false; renderWeb(); }, 1200);
+  setTimeout(() => { lastWebSig = null; refresh(); }, 1200); // re-read sent markers → sent cards leave the list
 }
 $("webSearch").addEventListener("input", debounce(renderWeb, 140));
 
@@ -670,7 +668,7 @@ function renderProblems() {
     info.classList.add("click"); info.title = t("row_open");
     info.onclick = () => { if (expanded.has("p:" + pr.provider)) expanded.delete("p:" + pr.provider); else expanded.add("p:" + pr.provider); renderProblems(); };
     row.append(info);
-    if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
+    if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => loginAgain(pr.provider, open); row.append(open); }
     else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
     if (pr.id) connActions(row, info, pr, renderProblems);
     else {
@@ -1106,8 +1104,9 @@ function renderWizard() {
   card.append(sec); box.append(card);
   const web = OMNI_WEB_MAP[it.slug], oa = OMNI_OAUTH_MAP[it.slug], key = OMNI_APIKEY_MAP[it.slug];
   const sendToLogin = async () => {
-    await msg({ action: "autoAdd", key: it.slug });
-    chrome.tabs.create({ url: loginTarget(web), active: true });
+    go.disabled = true;
+    const r = await msg({ action: "loginAgain", key: it.slug }); // already logged in → pushed right away
+    if (r && r.pushed) { setRes(res, r.alive === false ? "bad" : "ok", (r.alive === false ? "🔴 " + t("det_loginPushedDead") : "🟢 " + t("det_loginPushed")) + (r.connName ? " · " + r.connName : "")); await loadConnections(); setTimeout(renderWizard, 1500); return; }
     setRes(res, "pend", t("wiz_waitLogin"));
     wizSkip.add(it.kind + ":" + it.slug);
   };
@@ -1221,10 +1220,15 @@ const modelsOf = (slug) => (modelList || []).filter((m) => m.id.startsWith(slug 
 const connName = (c) => c.name || providerLabel(c.provider);
 
 // Send the user to log in again; the SW finishes the add itself once the session shows up.
-async function loginAgain(slug) {
-  const w = OMNI_WEB_MAP[slug]; if (!w) return;
-  await msg({ action: "autoAdd", key: slug });
-  chrome.tabs.create({ url: loginTarget(w), active: true });
+async function loginAgain(slug, btn) {
+  if (!OMNI_WEB_MAP[slug]) return;
+  if (btn) { btn.disabled = true; btn.textContent = t("det_loginWorking"); }
+  const r = await msg({ action: "loginAgain", key: slug });
+  if (btn) {
+    btn.textContent = r && r.pushed ? (r.alive === false ? "🔴 " + t("det_loginPushedDead") : "✓ " + t("det_loginPushed")) : r && r.opened ? t("det_loginOpened") : "🔴 " + t("popup_error");
+    btn.title = r && r.connName ? (r.updated ? t("rs_updatedConn", [r.connName]) : t("rs_newConn", [r.connName])) + (r.detail ? " · " + r.detail : "") : "";
+  }
+  if (r && r.pushed) { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; await loadStats(false); await loadConnections(); refresh(); }
 }
 function nextActionBtns(r, box) {
   const row = el("div", "dact");
@@ -1235,7 +1239,7 @@ function nextActionBtns(r, box) {
     const rf = el("button", "ghost sm", t("det_refresh")); rf.title = t("row_refresh");
     rf.onclick = () => runRefresh([r.slug], rf);
     const li = el("button", "ghost sm", t("det_login")); li.title = t("det_loginTitle");
-    li.onclick = () => loginAgain(r.slug);
+    li.onclick = () => loginAgain(r.slug, li);
     row.append(rf, li);
   } else if (r.kind === "key") {
     const k = OMNI_APIKEY_MAP[r.slug];
@@ -1336,7 +1340,7 @@ function renderRefreshReport() {
     }
     if (v.state === "needLogin" || v.state === "noSession") {
       const go = el("button", "sm", t("det_login")); go.title = t("det_loginTitle");
-      go.onclick = () => loginAgain(key);
+      go.onclick = () => loginAgain(key, go);
       row.append(go);
     }
     card.append(row);
@@ -1418,6 +1422,15 @@ chrome.runtime.onMessage.addListener((m) => {
 });
 
 // ── settings panel ───────────────────────────────────────────────────────────
+// Popup size (идея: "изменяемый размер"). A browser action popup can't be drag-resized and is capped at
+// 800×600, so the size is a setting; the detached window and the full tab resize freely anyway.
+const POPUP_SIZES = { s: [420, 560], m: [560, 600], l: [760, 600] };
+function applySize(v) {
+  if (full || windowed) return;
+  const [w, h] = POPUP_SIZES[v] || POPUP_SIZES.s;
+  document.documentElement.style.height = h + "px";
+  Object.assign(document.body.style, { width: w + "px", height: h + "px" });
+}
 function applyTheme(t) { const r = document.documentElement; if (t === "light" || t === "dark") r.dataset.theme = t; else delete r.dataset.theme; } // "auto" → follow system
 async function loadSettings() {
   const { settings } = (await msg({ action: "getSettings" })) || {};
@@ -1430,6 +1443,7 @@ async function loadSettings() {
   $("setNightly").checked = s.nightly !== false;
   renderSweepSkip(s.sweepSkip || []);
   $("setTheme").value = s.theme || "auto"; applyTheme(s.theme);
+  try { $("setSize").value = localStorage.getItem("omni_size") || "s"; } catch (e) { /* default */ }
   try { $("setVer").textContent = "v" + chrome.runtime.getManifest().version; } catch (e) {}
   $("setSummary").textContent = connTotal
     ? t("set_summaryConns", [String(connTotal), String(Object.keys(conns).length)])
@@ -1488,6 +1502,7 @@ function initSettings() {
     }
   });
   $("settingsBtn").addEventListener("click", () => { loadSettings(); });
+  $("setSize").addEventListener("change", () => { const v = $("setSize").value; try { localStorage.setItem("omni_size", v); } catch (e) { /* not persisted */ } applySize(v); });
   for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme", "setAutoRepair", "setNightly"]) $(id).addEventListener("change", saveSettings);
   $("sweepNowBtn").addEventListener("click", async () => {
     const b = $("sweepNowBtn"); b.disabled = true; b.textContent = t("set_sweeping");
@@ -1528,6 +1543,7 @@ initSettings();
 // Detach into a standalone window so the popup stays open while you switch tabs.
 const windowed = new URLSearchParams(location.search).get("window") === "1";
 const full = new URLSearchParams(location.search).get("full") === "1"; // the wide full-tab view (идея 20)
+try { applySize(localStorage.getItem("omni_size") || "s"); } catch (e) { /* storage blocked → default size */ }
 if (full) { document.documentElement.classList.add("full"); document.body.classList.add("full"); $("detachBtn").classList.add("hide"); $("fullBtn").classList.add("hide"); }
 else if (windowed) {
   $("detachBtn").classList.add("hide");

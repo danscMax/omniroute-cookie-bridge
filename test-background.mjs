@@ -257,6 +257,21 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.equal(sandbox.hasSession(claude, null), false, "no capture → no session");
 }
 
+// ── an analytics cookie changing is NOT a new capture (the "sent card keeps coming back" flicker) ──
+{
+  const { chrome } = boot();
+  fireCapture(chrome, xhr("https://www.perplexity.ai/api/x", "_ga=1; __Secure-next-auth.session-token=S1"));
+  await tick();
+  const first = chrome.storage.session._dump()["cap_perplexity-web"].at;
+  await tick(20);
+  fireCapture(chrome, xhr("https://www.perplexity.ai/api/x", "_ga=2; __Secure-next-auth.session-token=S1"));
+  await tick();
+  assert.equal(chrome.storage.session._dump()["cap_perplexity-web"].at, first, "same session, new analytics cookie → capture time unchanged");
+  fireCapture(chrome, xhr("https://www.perplexity.ai/api/x", "_ga=2; __Secure-next-auth.session-token=S2"));
+  await tick();
+  assert.notEqual(chrome.storage.session._dump()["cap_perplexity-web"].at, first, "a new session token IS a new capture");
+}
+
 // ── a refreshed session UPDATES the connection this browser feeds — it never mints a duplicate ──
 {
   const posts = [], patches = [];
