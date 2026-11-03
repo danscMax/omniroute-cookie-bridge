@@ -983,9 +983,6 @@
   "bg_autoAddFail": {
     "message": "⚠ $1: сессия поймана, но проверка не прошла — $2"
   },
-  "bg_noSessionCookie": {
-    "message": "на сайте нет сессионной куки — нужен вход"
-  },
   "nav_chat": {
     "message": "Тест-чат"
   },
@@ -1150,5 +1147,8 @@
   },
   "det_loginPushedUnk": {
     "message": "Сессия отправлена, проверка не дала ответа"
+  },
+  "bg_noSessionNames": {
+    "message": "нет cookie входа ($1). Есть: $2"
   }
 }

@@ -983,9 +983,6 @@
   "bg_autoAddFail": {
     "message": "⚠ $1: session captured but the check failed — $2"
   },
-  "bg_noSessionCookie": {
-    "message": "no session cookie on the site — log in"
-  },
   "nav_chat": {
     "message": "Test chat"
   },
@@ -1150,5 +1147,8 @@
   },
   "det_loginPushedUnk": {
     "message": "Session sent, the check gave no answer"
+  },
+  "bg_noSessionNames": {
+    "message": "no login cookie ($1). Present: $2"
   }
 }

@@ -1231,7 +1231,8 @@ async function loginAgain(slug, btn) {
   const r = await msg({ action: "loginAgain", key: slug });
   if (btn) {
     btn.textContent = r && r.pushed ? (r.state === "ok" ? "✓ " + t("det_loginPushed") : r.state === "needLogin" ? "🔑 " + t("det_loginPushedDead") : "⚪ " + t("det_loginPushedUnk")) : r && r.opened ? t("det_loginOpened") : "🔴 " + t("popup_error");
-    btn.title = r && r.connName ? (r.updated ? t("rs_updatedConn", [r.connName]) : t("rs_newConn", [r.connName])) + (r.detail ? " · " + r.detail : "") : "";
+    btn.title = r && r.connName ? (r.updated ? t("rs_updatedConn", [r.connName]) : t("rs_newConn", [r.connName])) + (r.detail ? " · " + r.detail : "") : (r && r.detail) || "";
+    if (r && r.opened && r.detail && btn.parentElement) { const d = el("div", "rep-sub", r.detail); d.style.paddingLeft = "0"; btn.after(d); }
   }
   if (r && r.pushed) { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; await loadStats(false); await loadConnections(); refresh(); }
 }

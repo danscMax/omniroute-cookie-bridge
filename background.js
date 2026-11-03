@@ -153,6 +153,11 @@ async function loginAgain(key) {
       }
       return { ok: false, error: (r && r.error) || "" };
     }
+    if (cap) { // the browser has cookies for the site, just not a session — say which, then open the site
+      await LOC.set({ ["autoadd_" + key]: Date.now() });
+      await chrome.tabs.create({ url: p.site, active: true });
+      return { ok: true, opened: true, detail: missingSessionDetail(p, cap) };
+    }
   }
   await LOC.set({ ["autoadd_" + key]: Date.now() });
   await chrome.tabs.create({ url: p.site, active: true });
@@ -165,7 +170,11 @@ function toast(message) {
 // cookies; pushing those unattended would mint a dead connection (new accountId → new name). Providers
 // whose catalog lists no named cookie (header/localStorage-only) need the Bearer token instead.
 // Session cookie names the generated catalog doesn't carry (its `sources` is empty for these).
-const SESSION_COOKIE_EXTRA = { huggingchat: ["hf-chat", "token"] };
+// Auth.js v5 renamed next-auth's cookie (next-auth.session-token → authjs.session-token); accept both.
+const SESSION_COOKIE_EXTRA = {
+  huggingchat: ["hf-chat", "token"],
+  "perplexity-web": ["__Secure-authjs.session-token", "next-auth.session-token"],
+};
 const sessionNames = (p) => p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []);
 // The part of a credential that IS the session: named session cookies (incl. next-auth chunks) + token.
 // "" when the provider has no known session cookie → callers fall back to comparing the whole header.
@@ -174,6 +183,13 @@ function sessionKey(p, cookie, token) {
   if (!names.length) return token || "";
   const parts = String(cookie || "").split(";").map((x) => x.trim()).filter((x) => names.some((n) => x.startsWith(n + "=") || x.startsWith(n + ".")));
   return parts.length ? parts.sort().join("; ") + "|" + (token || "") : "";
+}
+// Why no session: which cookies WERE there (names only — values are secrets) vs which one is needed.
+// Turns "нужен вход" from a guess into something checkable against the site.
+function missingSessionDetail(p, cap) {
+  const have = String((cap && cap.cookie) || "").split(";").map((x) => x.trim().split("=")[0]).filter(Boolean);
+  const want = sessionNames(p);
+  return t("bg_noSessionNames", [want.join(" / ") || (p.cred.t === "token" ? "Bearer" : "?"), have.slice(0, 14).join(", ") + (have.length > 14 ? " …" : "") || "—"]);
 }
 function hasSession(p, cap) {
   if (!cap) return false;
@@ -256,7 +272,7 @@ async function refreshSessions(keys, emit = true) {
         try { await chrome.tabs.remove(tab.id); } catch (e) { /* user closed it */ }
       }
       if (!hasSession(p, cap)) {
-        out[p.key] = { state: capSeen[p.key] > start ? "needLogin" : "noSession", detail: capSeen[p.key] > start ? t("bg_noSessionCookie") : t("bg_noRequest") };
+        out[p.key] = { state: capSeen[p.key] > start || cap ? "needLogin" : "noSession", detail: cap ? missingSessionDetail(p, cap) : t("bg_noRequest") };
       } else {
         const r = await sendToOmni(p.key);
         if (!r || !r.ok) out[p.key] = { state: "error", detail: (r && r.error) || "" };
