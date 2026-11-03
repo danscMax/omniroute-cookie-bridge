@@ -21,9 +21,11 @@
 * { box-sizing: border-box; }
 button, .card, .chip, .tab, .keyrow { transition: background-color .12s ease, border-color .12s ease, filter .12s ease; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-/* min(560px, 100vh): cap the panel to whatever height Firefox actually allocates so a short
-   viewport (small screen / zoom / toolbar) can't clip the footer off the bottom (was fixed 560px). */
-html, body { height: min(560px, 100vh); margin: 0; overflow: hidden; }
+/* Chrome sizes the popup FROM the content, so 100vh there is the tiny initial viewport and the panel
+   collapses to a sliver — keep a fixed 560px. Firefox allocates the panel first, so cap it to 100vh
+   there to keep a short viewport from clipping the footer (-moz-appearance = Firefox-only probe). */
+html, body { height: 560px; margin: 0; overflow: hidden; }
+@supports (-moz-appearance: none) { html, body { height: min(560px, 100vh); } }
 body {
   width: 420px; display: flex; flex-direction: column;
   font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
