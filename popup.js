@@ -808,6 +808,7 @@ async function refresh() {
 }
 
 // ── stats shared by Pulse / Wizard / Table ──────────────────────────────────
+let park = {};        // slug → {ids, passes, at, why} — providers the health sweep switched off
 let hist = {};        // slug → [{at, a: alive, ms}] (7 days)
 let sites = {};       // web key → {up, ms, at}
 let expiry = {};      // web key → earliest session-cookie expiry (ms)
@@ -841,7 +842,8 @@ function providerRows() {
     if (expDays != null && expDays < 3) warns.push("exp");
     if (site && site.up === false) warns.push("site");
     if (pr && pr.ms > 20000) warns.push("slow");
-    const status = kind === "retired" ? "retired" : dead ? "bad" : warns.length ? "warn" : pr && pr.alive === true ? "ok" : "unk";
+    if (park[slug] && park[slug].ids) warns.unshift("parked");
+    const status = kind === "retired" ? "retired" : park[slug] && park[slug].ids ? "warn" : dead ? "bad" : warns.length ? "warn" : pr && pr.alive === true ? "ok" : "unk";
     return { slug, kind, label: providerLabel(slug), total: c.total, good: c.good, bad: c.bad, pr, h, site, exp, expDays, warns, status, free: !!(OMNI_APIKEY_MAP[slug] && OMNI_APIKEY_MAP[slug].free) };
   });
 }
@@ -881,6 +883,7 @@ function expText(r) {
 }
 function rowMeta(r) {
   if (r.status === "retired") return [t("kind_retired"), "bad"];
+  if (r.warns.includes("parked")) return [t("park_row", [ago(park[r.slug].at)]), "warn"];
   if (r.status === "bad") return [humanErr(r.pr), "bad"];
   if (r.warns.includes("site")) return [t("site_down"), "warn"];
   if (r.warns.includes("exp")) return [t("exp_soon", [expText(r)]), "warn"];
@@ -1195,7 +1198,7 @@ $("fullBtn").addEventListener("click", () => chrome.tabs.create({ url: chrome.ru
 // Stats live in the SW's storage; site checks / cookie expiry are refreshed when stale.
 async function loadStats(heavy = true) {
   const s = await msg({ action: "getStats" });
-  hist = (s && s.hist) || {}; sites = (s && s.sites) || {}; lastRefresh = (s && s.lastRefresh) || lastRefresh;
+  hist = (s && s.hist) || {}; sites = (s && s.sites) || {}; lastRefresh = (s && s.lastRefresh) || lastRefresh; park = (s && s.park) || {};
   // A refresh started before this popup opened keeps running in the SW — pick its progress back up.
   if (s && s.refreshState && s.refreshState.running) { $("refreshAllBtn").disabled = true; onRefreshProgress(s.refreshState); }
   if (!heavy) return;
@@ -1276,6 +1279,12 @@ function provDetail(r) {
   if (r.kind === "web") {
     facts.append(el("div", "mut", (r.site ? (r.site.up === true ? "🌐 " + t("det_siteUp", [fmtMs(r.site.ms)]) : r.site.up === false ? "🌐 " + t("site_down") : "🌐 " + t("det_siteUnknown")) : "🌐 —")
       + " · " + (r.expDays != null ? "🍪 " + t("exp_soon", [expText(r)]) : "🍪 " + t("det_expUnknown"))));
+  }
+  if (park[r.slug] && park[r.slug].ids) {
+    facts.append(el("div", "mut", "⏸ " + t("park_detail", [String(park[r.slug].ids.length), ago(park[r.slug].at)]) + (park[r.slug].why ? " — " + park[r.slug].why : "")));
+    const up = el("button", "ghost sm", t("park_enableNow"));
+    up.onclick = async () => { up.disabled = true; await msg({ action: "unpark", slug: r.slug }); await loadStats(false); await loadConnections(); };
+    facts.append(up);
   }
   box.append(facts);
   nextActionBtns(r, box);
@@ -1447,6 +1456,7 @@ async function loadSettings() {
   $("setPersist").checked = s.persistSessions !== false; // default on
   $("setAutoRepair").checked = s.autoRepair !== false;
   $("setNightly").checked = s.nightly !== false;
+  $("setAutoPark").checked = s.autoPark !== false;
   renderSweepSkip(s.sweepSkip || []);
   $("setTheme").value = s.theme || "auto"; applyTheme(s.theme);
   try { $("setSize").value = localStorage.getItem("omni_size") || "s"; } catch (e) { /* default */ }
@@ -1486,7 +1496,7 @@ function renderSweepSkip(skip) {
 }
 function saveSettings() {
   applyTheme($("setTheme").value);
-  msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked, autoRepair: $("setAutoRepair").checked, nightly: $("setNightly").checked } });
+  msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked, autoRepair: $("setAutoRepair").checked, nightly: $("setNightly").checked, autoPark: $("setAutoPark").checked } });
 }
 function initSettings() {
   // Firefox: request the 127.0.0.1 host permission on click (a user gesture, as permissions.request needs),
@@ -1509,7 +1519,7 @@ function initSettings() {
   });
   $("settingsBtn").addEventListener("click", () => { loadSettings(); });
   $("setSize").addEventListener("change", () => { const v = $("setSize").value; try { localStorage.setItem("omni_size", v); } catch (e) { /* not persisted */ } applySize(v); });
-  for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme", "setAutoRepair", "setNightly"]) $(id).addEventListener("change", saveSettings);
+  for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme", "setAutoRepair", "setNightly", "setAutoPark"]) $(id).addEventListener("change", saveSettings);
   $("sweepNowBtn").addEventListener("click", async () => {
     const b = $("sweepNowBtn"); b.disabled = true; b.textContent = t("set_sweeping");
     const r = await msg({ action: "sweepNow" });

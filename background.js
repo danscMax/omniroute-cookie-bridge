@@ -40,7 +40,7 @@ const t = (k, subs) => chrome.i18n.getMessage(k, subs) || k;
 // completion per provider every cycle, which costs money on paid tiers and trips rate-limits on some
 // (kiro 429) — and for a web-session provider a robotic request every 15 min is also ban-surface.
 // Opting one out keeps it usable via the popup's manual "Проверить все" without paying for it hourly.
-const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: [], autoRepair: true, nightly: true };
+const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: [], autoRepair: true, nightly: true, autoPark: true };
 
 // How long a mirrored capture may sit on disk. Session cookies live "hours to days", so one that hasn't
 // been refreshed in a week is a corpse: re-pushing it can't authenticate anything, and keeping it is a
@@ -430,11 +430,12 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "chat": chatOnce(req.model, req.messages).then(send); return true;
     case "autoAdd": LOC.set({ ["autoadd_" + req.key]: Date.now() }).then(() => send({ ok: true })); return true;
     case "loginAgain": loginAgain(req.key).then(send); return true;
+    case "unpark": unpark(req.slug).then(send); return true;
     case "getStats":
       LOC.get(null).then((all) => {
         const hist = {}, sites = {};
         for (const k in all) { if (k.startsWith("hist_")) hist[k.slice(5)] = all[k]; else if (k.startsWith("site_")) sites[k.slice(5)] = all[k]; }
-        send({ hist, sites, lastRefresh: all.last_refresh || null, refreshing: !!refreshing, refreshState });
+        send({ hist, sites, lastRefresh: all.last_refresh || null, refreshing: !!refreshing, refreshState, park: all.park || {} });
       });
       return true;
     default: return false;
@@ -745,15 +746,16 @@ function chatProbeInPage(modelId) {
   const to = setTimeout(() => ctrl.abort(), 30000); // self-abort so a hung fetch doesn't orphan past runInDash's cap
   return fetch("/v1/chat/completions", {
     method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
-    body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 }),
+    body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 16 }),
   }).then(async (r) => {
-    let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
-    return { fetched: true, ok: r.ok, status: r.status, msg };
+    let msg = "HTTP " + r.status, text = "";
+    try { const d = await r.json(); msg = (d.error || {}).message || msg; text = ((((d.choices || [])[0] || {}).message || {}).content || ""); } catch (e) {}
+    return { fetched: true, ok: r.ok, status: r.status, msg, text: String(text).slice(0, 200) };
   }).catch((e) => ({ fetched: true, netErr: true, msg: String(e).slice(0, 120) })).finally(() => clearTimeout(to));
 }
 // Direct completion probe first (Chrome — no tab); on throw (Firefox mixed content) fall back to the tab.
 async function chatProbe(modelId) {
-  const body = JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 1 });
+  const body = JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 16 });
   if (CAN_DIRECT_FETCH) {
     try {
       const ctrl = new AbortController();
@@ -761,8 +763,9 @@ async function chatProbe(modelId) {
       const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
         method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
       }).finally(() => clearTimeout(to));
-      let msg = "HTTP " + r.status; try { msg = ((await r.json()).error || {}).message || msg; } catch (e) {}
-      return { fetched: true, ok: r.ok, status: r.status, msg };
+      let msg = "HTTP " + r.status, text = "";
+      try { const d = await r.json(); msg = (d.error || {}).message || msg; text = ((((d.choices || [])[0] || {}).message || {}).content || ""); } catch (e) {}
+      return { fetched: true, ok: r.ok, status: r.status, msg, text: String(text).slice(0, 200) };
     } catch (e) {
       if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: t("bg_probeAbort") };
       // any other direct error → fall through to the tab
@@ -803,6 +806,7 @@ async function chatOnce(model, messages) {
   if (r && r.ok && text) return { ok: true, text, ms, usage: d.usage || null, model: d.model || model };
   return { ok: false, ms, status: r && r.status, error: (d.error && (d.error.message || d.error)) || (r && r.error) || ("HTTP " + (r && r.status)) };
 }
+const LOGGED_OUT_RE = /\b(sign up|sign in|log in|login to)\b.{0,40}(repeat|continue|request)|войдите|зарегистрируйтесь/i;
 async function probeModel(models, slug) {
   const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
   if (!m) return { alive: null, detail: t("bg_noModelsForProbe") };
@@ -816,6 +820,8 @@ async function probeModel(models, slug) {
       return { alive: null, model: m.id, detail: t("bg_probeTimeout", [String((r && r.error) || t("bg_noAnswer")).slice(0, 100)]) };
     }
     if (r.netErr) { if (attempt === 0) continue; return { alive: null, model: m.id, detail: String(r.msg).slice(0, 120) }; }
+    // 200 + the site's own "sign up / log in" text = a logged-out web session (perplexity-web, 2026-11-03).
+    if (r.ok && LOGGED_OUT_RE.test(r.text || "")) return { alive: false, model: m.id, ms, status: 401, detail: t("bg_loggedOutReply", [String(r.text).trim().slice(0, 50)]) };
     if (r.ok) return { alive: true, model: m.id, ms, detail: t("bg_answered200") };
     if (r.status >= 500 && attempt === 0) continue; // transient upstream → retry once
     // 429 = rate-limited, NOT dead — the account is almost certainly authenticated, just throttled.
@@ -899,6 +905,7 @@ async function healthSweep(force = false) {
       dead = dead.filter((s) => !fixed.has(s));
     }
   }
+  if (st.autoPark) await parkSweep(results);
   const prev = (await LOC.get("health_dead")).health_dead || [];
   const fresh = dead.filter((s) => !prev.includes(s));
   await LOC.set({ health_dead: dead, last_sweep: Date.now() });
@@ -913,6 +920,51 @@ async function healthSweep(force = false) {
       });
     } catch (e) { /* notifications permission absent → badge still turns red */ }
   }
+}
+// ── auto-park (owner's rule 2026-11-03: "отключать + возвращать", never delete) ──
+// A provider that fails the real probe 3 sweeps in a row gets its ACTIVE connections disabled, so
+// OmniRoute's routing (and OpenCode's auto/* combos) stop landing on it. Each later sweep wakes ONE of
+// them, probes, and puts it back to sleep unless it passed — 2 passes in a row re-enable all of them.
+// 429 / "no answer" count as neither. Connections the owner disabled himself are never touched.
+const PARK_FAILS = 3, PARK_PASSES = 2;
+async function parkSweep(results) {
+  const { park = {} } = await LOC.get("park");
+  const changed = [];
+  for (const [slug, r] of Object.entries(results)) {
+    if (park[slug] && park[slug].ids) continue; // parked ones are judged by their wake-up probe below
+    if (r.alive === null) continue;
+    const e = park[slug] || (park[slug] = { fails: 0 });
+    e.fails = r.alive === false ? e.fails + 1 : 0;
+    if (e.fails >= PARK_FAILS) {
+      const conns = await readConnections();
+      const ids = (conns.all || []).filter((c) => c.provider === slug && c.isActive).map((c) => c.id);
+      for (const id of ids) await updateConn(id, { isActive: false });
+      if (ids.length) { park[slug] = { ids, passes: 0, at: Date.now(), why: r.detail || "" }; changed.push("⏸ " + providerName(slug)); }
+    }
+  }
+  for (const [slug, e] of Object.entries(park)) {
+    if (!e.ids || !e.ids.length) continue;
+    await updateConn(e.ids[0], { isActive: true }); // wake one so the provider exposes a model to probe
+    _modelsCache = null;
+    await sleep(1500);
+    const r = await runProbe(slug);
+    await LOC.set({ ["probe_" + slug]: { ...r, at: Date.now() } });
+    e.passes = r.alive === true ? (e.passes || 0) + 1 : r.alive === false ? 0 : e.passes || 0;
+    if (e.passes >= PARK_PASSES) {
+      for (const id of e.ids.slice(1)) await updateConn(id, { isActive: true });
+      delete park[slug]; changed.push("▶ " + providerName(slug));
+    } else await updateConn(e.ids[0], { isActive: false });
+  }
+  await LOC.set({ park });
+  if (changed.length) toast(t("bg_parkChanged", [changed.join(", ")]));
+}
+const providerName = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH.find((o) => o.slug === slug) || OMNI_APIKEY.find((a) => a.slug === slug) || {}).label) || slug;
+async function unpark(slug) {
+  const { park = {} } = await LOC.get("park");
+  const e = park[slug]; if (!e) return { ok: true };
+  for (const id of e.ids || []) await updateConn(id, { isActive: true });
+  delete park[slug]; await LOC.set({ park });
+  return { ok: true, n: (e.ids || []).length };
 }
 // Clear cached probe verdicts + the dead-connection snapshot (a clean slate; badge goes neutral).
 async function clearProbes() {

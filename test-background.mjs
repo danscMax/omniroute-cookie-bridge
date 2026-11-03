@@ -272,6 +272,48 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.notEqual(chrome.storage.session._dump()["cap_perplexity-web"].at, first, "a new session token IS a new capture");
 }
 
+// ── auto-park: dead 3× → its active connections are switched OFF (never deleted); 2 good wake-ups → back ON ──
+{
+  const patches = [], deletes = [];
+  let healthy = false;
+  const conns = [
+    { provider: "cerebras", id: "k1", name: "Cerebras · a", testStatus: "active", isActive: true },
+    { provider: "cerebras", id: "k2", name: "Cerebras · b", testStatus: "active", isActive: false }, // owner's own switch-off
+  ];
+  const { sandbox } = boot({
+    dash: {
+      readConnectionsInPage: () => ({ ok: true, connections: conns }),
+      updateConnInPage: (id, patch) => { patches.push(id + ":" + patch.isActive); const c = conns.find((x) => x.id === id); if (c) c.isActive = patch.isActive; return { ok: true }; },
+      deleteConnInPage: (id) => { deletes.push(id); return { ok: true }; },
+      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+      fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "cerebras/m" }] }),
+      chatProbeInPage: () => (healthy ? { fetched: true, ok: true, status: 200, msg: "", text: "PONG" } : { fetched: true, ok: false, status: 402, msg: "credits exhausted" }),
+    },
+  });
+  const dead = { cerebras: { alive: false, detail: "402" } };
+  await sandbox.parkSweep(dead); await sandbox.parkSweep(dead);
+  assert.deepEqual(patches, [], "two failures: nothing switched off yet");
+  await sandbox.parkSweep(dead);
+  assert.ok(patches.includes("k1:false"), "third failure switches the active connection off");
+  assert.ok(!patches.some((p) => p.startsWith("k2")), "a connection the owner disabled is never touched");
+  assert.deepEqual(deletes, [], "nothing is ever deleted");
+  healthy = true; patches.length = 0;
+  await sandbox.parkSweep({}); // wake-up probe #1 passes → still parked (put back to sleep)
+  assert.equal(conns.find((c) => c.id === "k1").isActive, false, "one good wake-up is not enough");
+  await sandbox.parkSweep({}); // #2 passes → back on
+  assert.equal(conns.find((c) => c.id === "k1").isActive, true, "two good wake-ups bring it back");
+}
+// ── a 200 that is the site's "sign up" nag is a DEAD session, not a pass (perplexity-web 2026-11-03) ──
+{
+  let text = "Sign up and repeat your request";
+  const { sandbox } = boot({ dash: { chatProbeInPage: () => ({ fetched: true, ok: true, status: 200, msg: "", text }) } });
+  const nag = await sandbox.probeModel([{ id: "perplexity-web/pplx-auto" }], "perplexity-web");
+  assert.equal(nag.alive, false, "logged-out nag → dead");
+  assert.equal(nag.status, 401, "…and reads as a login problem");
+  text = "PONG";
+  assert.equal((await sandbox.probeModel([{ id: "perplexity-web/pplx-auto" }], "perplexity-web")).alive, true, "a real answer passes");
+}
+
 // ── a later request WITHOUT the Bearer must not wipe the token an earlier request delivered (DeepSeek) ──
 {
   const { chrome } = boot();

@@ -1150,5 +1150,26 @@
   },
   "bg_noSessionNames": {
     "message": "no login cookie ($1). Present: $2"
+  },
+  "bg_loggedOutReply": {
+    "message": "placeholder reply “$1” — the session is logged out"
+  },
+  "bg_parkChanged": {
+    "message": "Health check: $1"
+  },
+  "park_row": {
+    "message": "switched off by the health check $1"
+  },
+  "park_detail": {
+    "message": "The health check switched off $1 connections ($2): 3 failures in a row. They come back after 2 good checks."
+  },
+  "park_enableNow": {
+    "message": "▶ Enable now"
+  },
+  "set_autoPark": {
+    "message": "Switch off broken, bring back revived"
+  },
+  "set_autoParkHint": {
+    "message": "A provider that fails the real check 3 times in a row gets its OmniRoute connections switched off (not deleted), so routing and OpenCode stop landing on it. Each later check wakes one connection: 2 passes in a row switch everything back on."
   }
 }

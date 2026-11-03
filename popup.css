@@ -350,3 +350,5 @@ table.stat tr.dtr .det { border: none; border-radius: 0; margin: 0; background: 
 .actions { flex-wrap: wrap; }
 .actions > button { min-width: 0; }
 .actions .grow { min-width: 96px; }
+/* diagnostics under a report row must be readable in full, not cut at the window edge */
+.rep-sub { white-space: normal; overflow: visible; word-break: break-word; }
