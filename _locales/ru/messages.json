@@ -215,9 +215,6 @@
   "web_send": {
     "message": "Отправить в OmniRoute"
   },
-  "web_predictUpd": {
-    "message": "перезапишет существующее соединение свежими куками"
-  },
   "web_readyTitle": {
     "message": "Готово к отправке"
   },
@@ -1096,5 +1093,35 @@
   },
   "key_stepsHome": {
     "message": "Открою сайт провайдера: войди → найди в меню «API Keys» (обычно в Settings или Dashboard) → создай ключ и вставь ниже."
+  },
+  "web_asNew": {
+    "message": "+ Как новый аккаунт"
+  },
+  "web_asNewTitle": {
+    "message": "Это другой аккаунт — завести для него отдельное соединение, не трогая существующее"
+  },
+  "web_predictUpdName": {
+    "message": "обновит соединение «$1» свежими куками"
+  },
+  "web_sentDone": {
+    "message": "Отправлено"
+  },
+  "popup_updatedProbing": {
+    "message": "Обновлено «$1» — проверяю…"
+  },
+  "kind_other": {
+    "message": "нет в каталоге расширения"
+  },
+  "refresh_probing": {
+    "message": "Проверяю $1/$2 · $3"
+  },
+  "rs_updatedConn": {
+    "message": "обновлено «$1»"
+  },
+  "rs_newConn": {
+    "message": "новое соединение «$1»"
+  },
+  "bg_noRequest": {
+    "message": "сайт не прислал ни одного запроса за 15 с"
   }
 }

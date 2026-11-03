@@ -215,9 +215,6 @@
   "web_send": {
     "message": "Send to OmniRoute"
   },
-  "web_predictUpd": {
-    "message": "will overwrite the existing connection with fresh cookies"
-  },
   "web_readyTitle": {
     "message": "Ready to send"
   },
@@ -1096,5 +1093,35 @@
   },
   "key_stepsHome": {
     "message": "I'll open the provider's site: log in → find “API Keys” in the menu (usually Settings or Dashboard) → create a key and paste it below."
+  },
+  "web_asNew": {
+    "message": "+ As a new account"
+  },
+  "web_asNewTitle": {
+    "message": "This is a different account — create a separate connection, leave the existing one alone"
+  },
+  "web_predictUpdName": {
+    "message": "will refresh the connection “$1” with fresh cookies"
+  },
+  "web_sentDone": {
+    "message": "Sent"
+  },
+  "popup_updatedProbing": {
+    "message": "Updated “$1” — checking…"
+  },
+  "kind_other": {
+    "message": "not in the extension's catalog"
+  },
+  "refresh_probing": {
+    "message": "Checking $1/$2 · $3"
+  },
+  "rs_updatedConn": {
+    "message": "updated “$1”"
+  },
+  "rs_newConn": {
+    "message": "new connection “$1”"
+  },
+  "bg_noRequest": {
+    "message": "the site sent no request within 15 s"
   }
 }

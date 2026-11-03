@@ -81,6 +81,8 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
       // OmniRoute knows claude-web; perplexity-web was deleted in the dashboard.
       readConnectionsInPage: () => ({ ok: true, connections: [{ provider: "claude-web", id: "c1", name: "Claude Web · acc", testStatus: "error" }] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true, id: "c1" }; },
+      // its ONLY connection is updated in place (PATCH), not duplicated by a fresh POST
+      updateConnInPage: (id) => { pushed.push("claude-web"); return { ok: true }; },
       gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
     },
   });
@@ -139,6 +141,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
         { provider: "perplexity-web", id: "c2", name: "Perplexity Web · b", testStatus: "error" },
       ] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; },
+      updateConnInPage: (id) => { pushed.push(id === "c1" ? "claude-web" : id); return { ok: true }; }, // sole connection → updated in place
       gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
     },
   });
@@ -252,6 +255,33 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.equal(sandbox.hasSession(claude, { cookie: "_ga=1; sessionKey=sk-abc" }), true, "the named session cookie is");
   assert.equal(sandbox.hasSession(claude, { cookie: "sessionKey=" }), false, "an emptied session cookie is not");
   assert.equal(sandbox.hasSession(claude, null), false, "no capture → no session");
+}
+
+// ── a refreshed session UPDATES the connection this browser feeds — it never mints a duplicate ──
+{
+  const posts = [], patches = [];
+  const conns = [
+    { provider: "perplexity-web", id: "p-old", name: "Perplexity Web · aaaa", testStatus: "active" },
+    { provider: "perplexity-web", id: "p-other", name: "Perplexity Web · bbbb", testStatus: "active" },
+  ];
+  const { chrome, sandbox } = boot({
+    dash: {
+      readConnectionsInPage: () => ({ ok: true, connections: conns }),
+      postProviderInPage: (slug, name) => { posts.push(name); conns.push({ provider: slug, id: "p-new", name, testStatus: "active" }); return { ok: true, id: "p-new" }; },
+      updateConnInPage: (id) => { patches.push(id); return { ok: true }; },
+      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+    },
+  });
+  const cap = (c) => chrome.storage.session.set({ "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: c, token: "", cookieCount: 1, at: Date.now() } });
+  await cap("__Secure-next-auth.session-token.0=one");
+  const r1 = await sandbox.sendToOmni("perplexity-web");
+  assert.equal(r1.updated, false, "two accounts already exist and none is known to be ours → create, never overwrite a stranger");
+  await cap("__Secure-next-auth.session-token.0=two"); // the cookie rotated
+  const r2 = await sandbox.sendToOmni("perplexity-web");
+  assert.equal(r2.updated, true, "second push updates the connection this browser created");
+  assert.deepEqual(patches, ["p-new"], "…by id, in place");
+  assert.equal(posts.length, 1, "exactly one connection created across two pushes");
+  assert.equal(sandbox.hasSession(sandbox.OMNI_WEB_MAP["perplexity-web"], { cookie: "__Secure-next-auth.session-token.0=x" }), true, "chunked next-auth cookie counts as a session");
 }
 
 console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured, no direct-fetch hang (Firefox)");

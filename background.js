@@ -95,6 +95,18 @@ chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
 // capture, probe it, and say so with a toast. One-shot per provider, expires after 15 min.
 const AUTOADD_TTL_MS = 15 * 60 * 1000;
 const autoAdding = new Set();
+if (chrome.cookies && chrome.cookies.onChanged) chrome.cookies.onChanged.addListener((ch) => {
+  if (ch.removed || !ch.cookie) return;
+  const dom = String(ch.cookie.domain || "").replace(/^\./, "");
+  for (const p of OMNI_WEB) {
+    if (p.cred.t !== "cookie" || !(p.host === dom || p.host.endsWith("." + dom) || dom.endsWith(p.host))) continue;
+    LOC.get("autoadd_" + p.key).then(async (r) => {
+      if (!r["autoadd_" + p.key]) return;
+      await captureFromStore(p); // then the shared one-shot path checks the session and pushes
+      maybeAutoAdd(p.key);
+    });
+  }
+});
 async function maybeAutoAdd(key) {
   if (autoAdding.has(key)) return;
   const k = "autoadd_" + key;
@@ -110,7 +122,8 @@ async function maybeAutoAdd(key) {
     const p = r && r.ok ? await realProbe(OMNI_WEB_MAP[key].slug) : null;
     const label = (OMNI_WEB_MAP[key] || {}).label || key;
     toast(r && r.ok && p && p.alive !== false ? t("bg_autoAddOk", [label]) : t("bg_autoAddFail", [label, String((p && p.detail) || (r && r.error) || "")]));
-    if (r && r.ok) readConnections().catch(() => {});
+    if (r && r.ok) { await LOC.set({ ["sent_" + key]: Date.now() }); await readConnections().catch(() => {}); }
+    try { chrome.runtime.sendMessage({ type: "autoAdded", key, ok: !!(r && r.ok) }); } catch (e) { /* no popup open */ }
   } finally { autoAdding.delete(key); }
 }
 function toast(message) {
@@ -119,12 +132,16 @@ function toast(message) {
 // Does a capture carry the provider's real SESSION credential? A logged-out site still sends analytics
 // cookies; pushing those unattended would mint a dead connection (new accountId → new name). Providers
 // whose catalog lists no named cookie (header/localStorage-only) need the Bearer token instead.
+// Session cookie names the generated catalog doesn't carry (its `sources` is empty for these).
+const SESSION_COOKIE_EXTRA = { huggingchat: ["hf-chat", "token"] };
 function hasSession(p, cap) {
   if (!cap) return false;
-  const names = p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name);
+  if (p.cred && p.cred.t === "token" && cap.token) return true; // DeepSeek: the Bearer token IS the session
+  const names = p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []);
   if (!names.length) return !!cap.token;
   const have = new Set(String(cap.cookie || "").split(";").map((x) => x.trim()).filter((x) => /=./.test(x)).map((x) => x.slice(0, x.indexOf("="))));
-  return names.some((n) => have.has(n));
+  // next-auth (Perplexity) splits a big session cookie into "<name>.0", "<name>.1", …
+  return names.some((n) => have.has(n) || have.has(n + ".0"));
 }
 const capSeen = {}; // provider key → last time ANY request carried its session (dedup-proof liveness)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -134,6 +151,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // A cookie the browser still sends can belong to a dead session, so the verdict is the probe, not the
 // capture. Sequential on purpose: parallel chat probes have wedged the local server before.
 const REFRESH_WAIT_MS = 15000;
+// The Cookie header the browser would send to the provider's site — straight from the cookie store,
+// HttpOnly included (needs the "cookies" permission + host access). No tab, no waiting for an XHR.
+async function cookieHeaderFor(p) {
+  if (!chrome.cookies) return "";
+  const seen = new Map();
+  for (const url of [p.site, p.loginUrl].filter(Boolean)) {
+    try { for (const c of await chrome.cookies.getAll({ url })) if (!seen.has(c.name)) seen.set(c.name, c.value); } catch (e) { /* no host access */ }
+  }
+  return [...seen].map(([n, v]) => n + "=" + v).join("; ");
+}
+async function captureFromStore(p) {
+  const cookie = await cookieHeaderFor(p);
+  if (!cookie) return null;
+  const { ["cap_" + p.key]: prev } = await SEC.get("cap_" + p.key);
+  const cap = { provider: p.key, slug: p.slug, label: p.label, cookie, token: (prev && prev.token) || "", cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now() };
+  cap.accountId = omniAccountId(omniBuildCredential(p, cap));
+  cap.email = omniAccountEmail(omniBuildCredential(p, cap));
+  await SEC.set({ ["cap_" + p.key]: cap });
+  const st = await getSettings(); if (st.persistSessions) await LOC.set({ ["cap_" + p.key]: cap });
+  return cap;
+}
 let refreshing = null;
 async function refreshSessions(keys, emit = true) {
   if (refreshing) return { busy: true };
@@ -142,21 +180,28 @@ async function refreshSessions(keys, emit = true) {
     for (let i = 0; i < keys.length; i++) {
       const p = OMNI_WEB_MAP[keys[i]];
       if (!p) continue;
+      if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", phase: "start", done: i, total: keys.length, key: p.key }); } catch (e) { /* popup closed */ }
       const start = Date.now();
-      let tab = null;
-      try { tab = await chrome.tabs.create({ url: p.site, active: false }); } catch (e) { out[p.key] = { state: "error", detail: String(e).slice(0, 80) }; continue; }
-      while (Date.now() - start < REFRESH_WAIT_MS && !(capSeen[p.key] > start)) await sleep(500);
-      try { await chrome.tabs.remove(tab.id); } catch (e) { /* user closed it */ }
-      if (!(capSeen[p.key] > start)) out[p.key] = { state: "noSession" };
+      // Cookie providers: the browser's cookie store has the session already. Token providers (DeepSeek's
+      // Bearer lives in page localStorage) still need the page to send one authenticated request.
+      const fromStore = p.cred.t === "cookie" ? await captureFromStore(p) : null;
+      if (!fromStore) {
+        let tab = null;
+        try { tab = await chrome.tabs.create({ url: p.site, active: false }); } catch (e) { out[p.key] = { state: "error", detail: String(e).slice(0, 80) }; continue; }
+        while (Date.now() - start < REFRESH_WAIT_MS && !(capSeen[p.key] > start)) await sleep(500);
+        try { await chrome.tabs.remove(tab.id); } catch (e) { /* user closed it */ }
+      }
+      if (!fromStore && !(capSeen[p.key] > start)) out[p.key] = { state: "noSession", detail: t("bg_noRequest") };
       else {
-        await sleep(300); // let the capture write land in session storage
+        if (!fromStore) await sleep(300); // let the capture write land in session storage
         const { ["cap_" + p.key]: cap } = await SEC.get("cap_" + p.key);
         if (!hasSession(p, cap)) { out[p.key] = { state: "needLogin", detail: t("bg_noSessionCookie") }; LOC.set({ ["repair_" + p.key]: Date.now() }); continue; }
         const r = await sendToOmni(p.key);
         if (!r || !r.ok) out[p.key] = { state: "error", detail: (r && r.error) || "" };
         else {
+          if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", phase: "probe", done: i, total: keys.length, key: p.key }); } catch (e) { /* popup closed */ }
           const pr = await realProbe(p.slug);
-          out[p.key] = { state: pr.alive === true ? "ok" : pr.alive === false ? "needLogin" : "unknown", detail: pr.detail || "" };
+          out[p.key] = { state: pr.alive === true ? "ok" : pr.alive === false ? "needLogin" : "unknown", detail: pr.detail || "", connName: r.connName, updated: r.updated };
         }
       }
       LOC.set({ ["repair_" + p.key]: Date.now() });
@@ -263,7 +308,8 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
         send({ caps });
       });
       return true;
-    case "send": sendToOmni(req.providerKey, req.name).then(send); return true;
+    case "send": sendToOmni(req.providerKey, req.name, !!req.forceNew).then(async (r) => { if (r && r.ok) await LOC.set({ ["sent_" + req.providerKey]: Date.now() }); send(r); }); return true;
+    case "slotFor": slotFor(req.providerKey).then(send); return true;
     case "addApiKey": sendApiKeyToOmni(req.slug, req.name, req.apiKey, req.psd).then(send); return true;
     case "bulkAddApiKey": bulkAddApiKeys(req.slug, req.keys).then(send); return true;
     case "probe": realProbe(req.slug).then(send); return true;
@@ -434,7 +480,41 @@ async function postApiKey(slug, base, apiKey, psd) {
   return { ...r, slug };
 }
 
-async function sendToOmni(providerKey, name) {
+// Which existing connection does a fresh session of THIS browser belong to? OmniRoute does NOT upsert
+// web-session connections by name (#15070: two accounts may share a label), it only dedups an identical
+// credential — and a refreshed cookie is never identical. So every re-send used to mint a duplicate row
+// (45 → 52 on 2026-11-03). The answer, in order of certainty:
+//   1. the credential carries a real account id (JWT) → the connection named "… · <that id>";
+//   2. the connection this browser wrote last time (slot_<key>, remembered by id);
+//   3. the provider's ONLY connection.
+// Otherwise null → create a new one (never overwrite a connection that may be another account's).
+async function resolveSlot(provider, cap) {
+  const cred = omniBuildCredential(provider, cap);
+  const acc = cap.accountId || omniAccountId(cred);
+  const stable = omniAccountIdStable(cred);
+  const conns = await readConnections();
+  if (conns.unreachable) return { error: conns.error };
+  const mine = (conns.all || []).filter((c) => c.provider === provider.slug);
+  if (stable) {
+    const same = mine.filter((c) => c.name.endsWith(" · " + acc));
+    if (same.length) return { conn: same.find((c) => c.isActive) || same[0], acc, stable };
+  }
+  const sk = "slot_" + provider.key;
+  const { [sk]: slot } = await LOC.get(sk);
+  if (slot && !(stable && slot.acc && slot.stable && slot.acc !== acc)) {
+    const c = mine.find((x) => x.id === slot.id);
+    if (c) return { conn: c, acc, stable };
+  }
+  if (mine.length === 1 && !stable) return { conn: mine[0], acc, stable };
+  // No slot yet (first run of this version): the connection this extension created most recently (last
+  // 7 days) is the one this browser has been feeding — adopt it instead of minting yet another row.
+  const recent = mine
+    .filter((c) => c.createdAt && Date.now() - Date.parse(c.createdAt) < 7 * 24 * 60 * 60 * 1000 && c.name.startsWith(provider.label + " · "))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  if (recent && !stable) return { conn: recent, acc, stable };
+  return { conn: null, acc, stable };
+}
+async function sendToOmni(providerKey, name, forceNew = false) {
   const provider = OMNI_WEB_MAP[providerKey];
   if (!provider) return { ok: false, error: t("bg_unknownProvider") };
   const gw = await requireGateway(); if (gw) return gw;
@@ -443,7 +523,25 @@ async function sendToOmni(providerKey, name) {
   if (!cap) return { ok: false, error: t("bg_noCapture") };
   const apiKey = omniBuildCredential(provider, cap);
   if (!apiKey) return { ok: false, error: t("bg_noCreds") };
-  return postApiKey(provider.slug, (name && name.trim()) ? name.trim() : provider.label, apiKey);
+  const slot = forceNew ? { conn: null } : await resolveSlot(provider, cap);
+  if (slot.error) return { ok: false, error: slot.error };
+  let r;
+  if (slot.conn) {
+    r = await runInDash(updateConnInPage, [slot.conn.id, { apiKey }, t("bg_needLogin")]);
+    r = { ...r, slug: provider.slug, id: slot.conn.id, connName: slot.conn.name, updated: true };
+  } else {
+    r = await postApiKey(provider.slug, (name && name.trim()) ? name.trim() : provider.label, apiKey);
+    r = { ...r, connName: ((name && name.trim()) || provider.label) + " · " + omniAccountId(apiKey), updated: false };
+  }
+  if (r.ok && r.id) await LOC.set({ ["slot_" + provider.key]: { id: r.id, acc: slot.acc || cap.accountId, stable: !!slot.stable, at: Date.now() } });
+  return r;
+}
+async function slotFor(providerKey) {
+  const provider = OMNI_WEB_MAP[providerKey];
+  const { ["cap_" + providerKey]: cap } = await SEC.get("cap_" + providerKey);
+  if (!provider || !cap) return { conn: null };
+  const s = await resolveSlot(provider, cap);
+  return { conn: s.conn ? { id: s.conn.id, name: s.conn.name } : null };
 }
 
 async function sendApiKeyToOmni(slug, name, apiKey, psd) {
@@ -490,7 +588,7 @@ async function readConnections() {
   if (!res || res.ok !== true || !Array.isArray(res.connections)) {
     return { byProvider: {}, total: 0, problems: [], unreachable: true, error: (res && res.error) || t("bg_noData") };
   }
-  const list = res.connections.map((c) => ({ provider: c.provider, id: c.id, name: c.name || "", testStatus: c.testStatus, hasError: !!c.errorCode, isActive: c.isActive !== false }));
+  const list = res.connections.map((c) => ({ provider: c.provider, id: c.id, name: c.name || "", testStatus: c.testStatus, hasError: !!c.errorCode, isActive: c.isActive !== false, createdAt: c.createdAt || null }));
   const byProvider = {};
   const problems = [];
   for (const c of list) {

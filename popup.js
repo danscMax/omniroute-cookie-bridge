@@ -133,7 +133,7 @@ async function addAndProbe(resEl, doAdd, probeBtn) {
   setRes(resEl, "pend", t("popup_adding"));
   const r = await doAdd();
   if (!r || !r.ok) { setRes(resEl, "bad", "🔴 " + ((r && r.error) || t("popup_error"))); return r; }
-  setRes(resEl, "pend", t("popup_addedProbing", [r.id ? ` (${r.id.slice(0, 8)}…)` : ""]));
+  setRes(resEl, "pend", r.updated && r.connName ? t("popup_updatedProbing", [r.connName]) : t("popup_addedProbing", [r.id ? ` (${r.id.slice(0, 8)}…)` : ""]));
   const p = await msg({ action: "probe", slug: r.slug });
   probes[r.slug] = { ...p, at: Date.now() };
   showProbe(resEl, r.id, p, true);
@@ -183,22 +183,34 @@ function webCard(p, cap) {
   actions.append(send, probe, dismiss); card.append(actions);
   const res = el("div", "res"); card.append(res);
   const hasOther = conns[p.slug] && conns[p.slug].total;
+  // The SW decides which connection this session refreshes (same account id / the one this browser
+  // feeds / the only one) — ask it, and SAY which one, so the user sees what gets overwritten.
+  let slotConn = null;
+  const asNew = el("button", "ghost sm hide", t("web_asNew")); asNew.title = t("web_asNewTitle");
+  actions.insertBefore(asNew, probe);
   function sync() {
-    const upd = willUpdate(p.slug, input.value.trim() || p.label, cap.accountId);
-    // Button carries the single "Обновить"; the hint explains — no duplicated word.
+    const upd = !!slotConn;
     send.textContent = upd ? t("popup_update") : (hasOther ? t("web_addAccount") : t("web_send"));
     send.classList.toggle("upd", upd);
+    asNew.classList.toggle("hide", !upd);
     predict.className = "predict " + (upd ? "upd" : "new");
-    predict.textContent = upd ? t("web_predictUpd") : t("popup_predictNew");
+    predict.textContent = upd ? t("web_predictUpdName", [slotConn.name]) : t("popup_predictNew");
   }
   sync();
-  input.addEventListener("input", sync);
+  msg({ action: "slotFor", providerKey: p.key }).then((r) => { slotConn = (r && r.conn) || null; sync(); });
+  asNew.onclick = async () => {
+    asNew.disabled = true;
+    const r = await addAndProbe(res, () => msg({ action: "send", providerKey: p.key, name: input.value.trim() || p.label, forceNew: true }), probe);
+    asNew.disabled = false;
+    if (r && r.ok) setTimeout(refresh, 2500);
+  };
   if (probes[p.slug]) { showProbe(res, null, probes[p.slug], false); probe.onclick = () => reprobe(res, p.slug, null, probe); }
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") send.click(); });
   send.addEventListener("click", async () => {
     send.disabled = true;
-    await addAndProbe(res, () => msg({ action: "send", providerKey: p.key, name: input.value.trim() || p.label }), probe);
-    send.disabled = false;
+    const r = await addAndProbe(res, () => msg({ action: "send", providerKey: p.key, name: input.value.trim() || p.label }), probe);
+    if (r && r.ok) { send.textContent = "✓ " + t("web_sentDone"); setTimeout(refresh, 2500); } // sent → the card leaves "ready to send"
+    else send.disabled = false;
   });
   return card;
 }
@@ -209,7 +221,7 @@ function renderWeb() {
   const q = $("webSearch").value.trim().toLowerCase();
   const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
   const cap = $("webCaptured"); cap.textContent = "";
-  const capd = OMNI_WEB.filter((p) => caps[p.key] && match(p))
+  const capd = OMNI_WEB.filter((p) => caps[p.key] && !(sentAt[p.key] >= caps[p.key].at) && match(p))
     .sort((a, b) => (a.key === activeProviderKey ? -1 : b.key === activeProviderKey ? 1 : 0));
   $("bWeb").textContent = String(OMNI_WEB.filter((p) => caps[p.key]).length);
   if (capd.length) {
@@ -784,12 +796,15 @@ function onProbeProgress(m) {
   res.className = "res show pend";
   res.textContent = t("popup_probingWith", [String(m.done), String(m.total), label]) + (eta ? " · " + t("popup_probeEta", [String(eta)]) : "");
 }
+let sentAt = {}; // web key → when its current capture was last pushed (a sent capture isn't "ready to send")
 async function refresh() {
   const r = await msg({ action: "getAll" });
   caps = (r && r.caps) || {};
+  const loc = await chrome.storage.local.get(OMNI_WEB.map((p) => "sent_" + p.key));
+  sentAt = {}; for (const p of OMNI_WEB) if (loc["sent_" + p.key]) sentAt[p.key] = loc["sent_" + p.key];
   // Include accountId+timestamp so a re-capture (same provider, DIFFERENT account) also re-renders
   // (else the update-vs-new label + age stay stale until the 15s force-refresh).
-  const sig = OMNI_WEB.filter((p) => caps[p.key]).map((p) => `${p.key}:${caps[p.key].accountId || ""}:${caps[p.key].at}`).sort().join(",");
+  const sig = OMNI_WEB.filter((p) => caps[p.key]).map((p) => `${p.key}:${caps[p.key].accountId || ""}:${caps[p.key].at}:${sentAt[p.key] || ""}`).sort().join(",");
   if (sig !== lastWebSig) { if (renderWeb() !== false) lastWebSig = sig; } // commit sig only if a render actually ran (not bailed on focus)
   refreshAistudio();
 }
@@ -805,8 +820,12 @@ let wizImport = [], wizIgnore = [], wizMode = "all";
 const wizSkip = new Set();
 const DAY = 24 * 60 * 60 * 1000;
 
-const kindOf = (slug) => OMNI_WEB_MAP[slug] ? "web" : OMNI_OAUTH_MAP[slug] ? "oauth" : OMNI_APIKEY_MAP[slug] ? "key" : "retired";
-const KIND_LABEL = { web: () => t("kind_web"), key: () => t("kind_key"), oauth: () => t("kind_oauth"), retired: () => t("kind_retired") };
+// "retired" ONLY for providers OmniRoute itself removed (docs/reference/REMOVED_PROVIDERS.md). Being absent
+// from this extension's catalog proves nothing: zai-web merely lost in-app cookie capture and github-models
+// is a normal live connection — calling those "removed" offered to delete working connections.
+const RETIRED = new Set(["qwen-web", "chatgpt-web"]);
+const kindOf = (slug) => RETIRED.has(slug) ? "retired" : OMNI_WEB_MAP[slug] ? "web" : OMNI_OAUTH_MAP[slug] ? "oauth" : OMNI_APIKEY_MAP[slug] ? "key" : "other";
+const KIND_LABEL = { web: () => t("kind_web"), key: () => t("kind_key"), oauth: () => t("kind_oauth"), retired: () => t("kind_retired"), other: () => t("kind_other") };
 const fmtMs = (ms) => (ms == null ? "—" : ms < 1000 ? ms + t("unit_ms") : (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + t("unit_s"));
 const isBadConn = (c) => c.hasError || c.testStatus === "banned" || c.testStatus === "error";
 
@@ -1164,7 +1183,9 @@ function onRefreshProgress(m) {
   $("probeProg").classList.remove("hide");
   bar.style.width = Math.round((m.done / m.total) * 100) + "%";
   res.className = "res show pend";
-  res.textContent = t("refresh_progress", [String(m.done), String(m.total), providerLabel(m.key)]);
+  res.textContent = (m.phase === "probe" ? t("refresh_probing", [String(m.done + 1), String(m.total), providerLabel(m.key)])
+    : m.phase === "start" ? t("refresh_progress", [String(m.done + 1), String(m.total), providerLabel(m.key)])
+    : t("refresh_progress", [String(m.done), String(m.total), providerLabel(m.key)]));
 }
 $("refreshAllBtn").addEventListener("click", () => runRefresh(null, $("refreshAllBtn")));
 $("fullBtn").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?full=1") }));
@@ -1305,7 +1326,14 @@ function renderRefreshReport() {
   for (const [key, v] of entries.sort((a, b) => order[a[1].state] - order[b[1].state])) {
     const [cls, ico, msgKey] = REFRESH_STATE[v.state] || REFRESH_STATE.unknown;
     const row = el("div", "rep-row");
-    row.append(el("span", "rep-ico", ico), el("span", "pn", providerLabel(key)), el("span", "pm " + cls, msgKey()));
+    const nm = el("span", "pn", providerLabel(key));
+    const st = el("span", "pm " + cls, msgKey());
+    if (v.connName) st.title = (v.updated ? t("rs_updatedConn", [v.connName]) : t("rs_newConn", [v.connName]));
+    row.append(el("span", "rep-ico", ico), nm, st);
+    if (v.detail || v.connName) {
+      const sub = el("div", "rep-sub", [v.connName ? (v.updated ? t("rs_updatedConn", [v.connName]) : t("rs_newConn", [v.connName])) : "", v.detail ? String(v.detail).slice(0, 120) : ""].filter(Boolean).join(" · "));
+      row.classList.add("two"); nm.after(sub);
+    }
     if (v.state === "needLogin" || v.state === "noSession") {
       const go = el("button", "sm", t("det_login")); go.title = t("det_loginTitle");
       go.onclick = () => loginAgain(key);
@@ -1383,6 +1411,7 @@ chrome.runtime.onMessage.addListener((m) => {
   if (!m || !m.type) return;
   if (m.type === "probeProgress") onProbeProgress(m);
   else if (m.type === "refreshProgress") onRefreshProgress(m);
+  else if (m.type === "autoAdded") { refresh(); msg({ action: "getProbes" }).then(async (pr) => { probes = (pr && pr.probes) || {}; await loadStats(false); await loadConnections(); }); }
   else if (m.type === "healthSwept") { // live-refresh verdicts after an unattended sweep
     msg({ action: "getProbes" }).then(async (pr) => { probes = (pr && pr.probes) || {}; await loadStats(false); renderAll(); });
   }

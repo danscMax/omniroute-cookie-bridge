@@ -42,6 +42,7 @@ const OMNI_WEB = (OMNI_GEN.web || []).map((w) => ({
   slug: w.slug,
   label: w.label,
   site: w.site,
+  loginUrl: w.loginUrl || "",
   host: w.host,
   perms: w.perms,
   hostRe: new RegExp(w.hostReSrc, "i"),
@@ -151,6 +152,17 @@ function omniAccountId(cred) {
   return h.toString(16).slice(0, 8);
 }
 
+// Is the accountId a real account identity (an id claim inside a JWT) rather than a hash of the whole
+// credential? Only a stable id may be used to find "the same account" among existing connections.
+function omniAccountIdStable(cred) {
+  const m = String(cred || "").match(/eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)/);
+  if (!m) return false;
+  try {
+    const p = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return !!(p.id || p.sub || p.user_id || p.userId || p.uid);
+  } catch (e) { return false; }
+}
+
 // Account e-mail from a JWT in the credential, when the provider puts one there — display only (the
 // connection NAME keeps the accountId so OmniRoute's upsert-by-name stays stable). "" when unknown.
 function omniAccountEmail(cred) {
@@ -166,6 +178,6 @@ function omniAccountEmail(cred) {
 if (typeof self !== "undefined") {
   Object.assign(self, {
     OMNI_BASE, OMNI_WEB, OMNI_WEB_MAP, OMNI_APIKEY, OMNI_APIKEY_MAP, OMNI_OAUTH, OMNI_OAUTH_MAP,
-    omniBuildCredential, omniAccountId, omniAccountEmail,
+    omniBuildCredential, omniAccountId, omniAccountEmail, omniAccountIdStable,
   });
 }
