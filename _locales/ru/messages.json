@@ -863,9 +863,6 @@
   "table_selN": {
     "message": "выбрано: $1"
   },
-  "table_hint": {
-    "message": "нажми на строку, чтобы выбрать"
-  },
   "table_refreshSel": {
     "message": "🔄 Обновить"
   },
@@ -994,5 +991,110 @@
   },
   "bg_noSessionCookie": {
     "message": "на сайте нет сессионной куки — нужен вход"
+  },
+  "nav_chat": {
+    "message": "Тест-чат"
+  },
+  "row_open": {
+    "message": "Нажми — подробности, модели и действия"
+  },
+  "det_refresh": {
+    "message": "↻ Обновить сессию"
+  },
+  "det_login": {
+    "message": "🔑 Войти заново"
+  },
+  "det_loginTitle": {
+    "message": "Откроет страницу входа. Войди и отправь любое сообщение — расширение само добавит сессию и пришлёт уведомление."
+  },
+  "det_newKey": {
+    "message": "🔑 Новый ключ"
+  },
+  "det_chat": {
+    "message": "💬 Чат"
+  },
+  "det_works": {
+    "message": "работает · ответ за $1"
+  },
+  "det_siteUp": {
+    "message": "сайт открывается ($1)"
+  },
+  "det_siteUnknown": {
+    "message": "сайт: не проверен"
+  },
+  "det_expUnknown": {
+    "message": "срок куки неизвестен"
+  },
+  "det_models": {
+    "message": "Модели через OmniRoute"
+  },
+  "det_noModels": {
+    "message": "OmniRoute не отдаёт моделей этого провайдера — значит, вызвать его сейчас нельзя."
+  },
+  "det_loadingModels": {
+    "message": "Загружаю список моделей…"
+  },
+  "det_copyModel": {
+    "message": "Нажми, чтобы скопировать «$1» — это имя модели для Claude Code / OpenCode"
+  },
+  "det_conns": {
+    "message": "Соединения"
+  },
+  "rs_title": {
+    "message": "Обновление сессий: $1 из $2 работают"
+  },
+  "rs_ok": {
+    "message": "обновлено, работает"
+  },
+  "rs_needLogin": {
+    "message": "сессия закончилась — нужен вход"
+  },
+  "rs_noSession": {
+    "message": "сайт не отдал сессию — нужен вход"
+  },
+  "rs_unknown": {
+    "message": "обновлено, проверка не ответила"
+  },
+  "rs_error": {
+    "message": "ошибка отправки в OmniRoute"
+  },
+  "rs_hint": {
+    "message": "Вкладки открывались и закрывались сами — так расширение забирало свежие куки. Где 🔑 — нажми «Войти заново»: войди на сайте, остальное сделается само."
+  },
+  "table_hint2": {
+    "message": "☐ — выбрать, нажми на строку — подробности"
+  },
+  "chat_prov": {
+    "message": "Провайдер"
+  },
+  "chat_model": {
+    "message": "Модель"
+  },
+  "chat_ph": {
+    "message": "Напиши сообщение… (Ctrl+Enter — отправить)"
+  },
+  "chat_send": {
+    "message": "Отправить"
+  },
+  "chat_clear": {
+    "message": "Очистить"
+  },
+  "chat_waiting": {
+    "message": "Жду ответ…"
+  },
+  "chat_tokens": {
+    "message": "$1 токенов"
+  },
+  "chat_hint": {
+    "message": "Проверь любое соединение живым запросом: выбери провайдера и модель, напиши «привет». Ответ идёт через твой OmniRoute — как у Claude Code / OpenCode."
+  },
+  "chat_noModels": {
+    "message": "нет доступных моделей"
+  },
+  "key_stepsDeep": {
+    "message": "На открывшейся странице: войди → «Create key» / «Создать ключ» → скопируй ключ и вставь ниже."
+  },
+  "key_stepsHome": {
+    "message": "Открою сайт провайдера: войди → найди в меню «API Keys» (обычно в Settings или Dashboard) → создай ключ и вставь ниже."
   }
 }

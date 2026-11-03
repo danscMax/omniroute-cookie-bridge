@@ -64,8 +64,8 @@ let lastWebSig = null;
 
 // ── tabs ────────────────────────────────────────────────────────────────────
 // Rail navigation: every section is a pane; the rail buttons are a vertical WAI-ARIA tablist.
-const PANES = ["dash", "wizard", "web", "key", "oauth", "table", "set"];
-const PANE_TITLE = { dash: "nav_dash", wizard: "nav_wizard", web: "nav_web", key: "nav_key", oauth: "nav_oauth", table: "nav_table", set: "popup_settings" };
+const PANES = ["dash", "wizard", "web", "key", "oauth", "table", "chat", "set"];
+const PANE_TITLE = { dash: "nav_dash", wizard: "nav_wizard", web: "nav_web", key: "nav_key", oauth: "nav_oauth", table: "nav_table", chat: "nav_chat", set: "popup_settings" };
 const tabEls = [...document.querySelectorAll(".rail .tab")];
 let curPane = "dash";
 function selectTab(tb) {
@@ -77,6 +77,7 @@ function selectTab(tb) {
   document.querySelector(".gsearch").classList.toggle("hide", !["web", "key", "oauth"].includes(curPane));
   if (curPane === "wizard") renderWizard();
   if (curPane === "table") renderTable();
+  if (curPane === "chat") { fillChatProviders(); renderChat(); }
   if (curPane !== "set") chrome.storage.local.set({ sel_tab: curPane }); // remember across opens
   $("scroll").scrollTop = 0;
 }
@@ -96,7 +97,7 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return; // don't hijack Ctrl+1 etc.
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const idx = parseInt(e.key, 10) - 1;
-  if (idx >= 0 && idx < 6 && tabEls[idx]) { tabEls[idx].click(); return; }
+  if (idx >= 0 && idx < 7 && tabEls[idx]) { tabEls[idx].click(); return; }
   if (e.key === "/") {
     if (!["web", "key", "oauth"].includes(curPane)) goPane("web");
     e.preventDefault(); $("globalSearch").focus();
@@ -280,6 +281,8 @@ function keyForm(p) {
     const get = el("button", "ghost sm getkey", t("key_getKey", [hostOf(p.get)]));
     get.onclick = () => chrome.tabs.create({ url: p.get });
     box.append(get);
+    // Say what to do on that page — the user doesn't remember each console's menu.
+    box.append(el("p", "hint-sm steps", p.deepLink ? t("key_stepsDeep") : t("key_stepsHome")));
   }
   const name = el("input"); name.type = "text"; name.placeholder = t("key_namePh");
   const key = el("input"); key.type = "password"; key.placeholder = t("key_keyPh"); key.autocomplete = "off";
@@ -649,8 +652,11 @@ function renderProblems() {
     const label = providerLabel(pr.provider);
     const row = el("div", "prob");
     const info = el("div", "prob-info");
-    const pn = el("div", "prob-name", pr.name || t("popup_noName")); if (pr.name) pn.title = pr.name; info.append(pn);
-    info.append(el("div", "prob-sub", `🔴 ${label} · ${pr.provider}` + (pr.probe && pr.probe.detail ? " · " + String(pr.probe.detail).slice(0, 50) : "")));
+    const pn = el("div", "prob-name", pr.name || label); pn.title = pr.name || label; info.append(pn);
+    const pv = pr.probe || probes[pr.provider];
+    info.append(el("div", "prob-sub", `🔴 ${pr.name ? label + " · " : ""}${humanErr(pv)}` + (pv && pv.detail ? " — " + String(pv.detail).slice(0, 60) : "")));
+    info.classList.add("click"); info.title = t("row_open");
+    info.onclick = () => { if (expanded.has("p:" + pr.provider)) expanded.delete("p:" + pr.provider); else expanded.add("p:" + pr.provider); renderProblems(); };
     row.append(info);
     if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => chrome.tabs.create({ url: loginTarget(wp) }); row.append(open); }
     else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
@@ -664,6 +670,8 @@ function renderProblems() {
       row.append(dis);
     }
     box.append(row);
+    const lastOfProv = !merged.slice(merged.indexOf(pr) + 1).some((m) => m.provider === pr.provider);
+    if (lastOfProv && expanded.has("p:" + pr.provider)) { const r = providerRows().find((x) => x.slug === pr.provider); if (r) box.append(provDetail(r)); }
   }
 }
 // Shared per-connection management actions — rename inline (no blocking prompt), enable/disable,
@@ -899,6 +907,7 @@ function renderDash() {
   $("fillMissingBtn").textContent = missing ? t("dash_fillMissingN", [String(missing)]) : t("dash_fillMissing");
   renderFilters($("dashFilters"), dashFilter, rows, (id) => { dashFilter = id; renderDash(); });
   renderCleanup();
+  renderRefreshReport();
   const box = $("dashList"); box.textContent = "";
   const shown = rows.filter(filterFn(dashFilter)).filter((r) => r.status !== "bad"); // broken ones live in the attention band above
   const groups = [["warn", () => t("dash_grpWarn")], ["ok", () => t("dash_grpOk")], ["unk", () => t("dash_grpUnk")]];
@@ -906,7 +915,7 @@ function renderDash() {
     const g = shown.filter((r) => r.status === st).sort((a, b) => a.label.localeCompare(b.label));
     if (!g.length) continue;
     const ttl = el("div", "grp-title", key()); ttl.append(el("span", "n", String(g.length))); box.append(ttl);
-    for (const r of g) box.append(provRow(r));
+    for (const r of g) { box.append(provRow(r)); if (expanded.has(r.slug)) box.append(provDetail(r)); }
   }
   if (!rows.length && serverOnline && !connUnreachable) {
     const e = el("div", "empty"); e.append(el("b", null, t("dash_emptyTitle")), document.createElement("br"), document.createTextNode(t("dash_emptyHint")));
@@ -915,7 +924,12 @@ function renderDash() {
   renderRail();
 }
 function provRow(r) {
-  const row = el("div", "prow " + (r.status === "warn" ? "warn" : ""));
+  const row = el("div", "prow click " + (r.status === "warn" ? "warn" : "") + (expanded.has(r.slug) ? " open" : ""));
+  row.tabIndex = 0; row.setAttribute("role", "button"); row.setAttribute("aria-expanded", String(expanded.has(r.slug)));
+  row.title = t("row_open");
+  const toggle = () => { if (expanded.has(r.slug)) expanded.delete(r.slug); else expanded.add(r.slug); renderAll(); };
+  row.addEventListener("click", (e) => { if (!e.target.closest("button")) toggle(); });
+  row.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); toggle(); } });
   const nm = el("span", "pn", r.label); nm.title = `${r.label} · ${r.slug}`;
   row.append(nm, el("span", "pc", `${r.good || 0}/${r.total}`), spark(r.h));
   const [meta, cls] = rowMeta(r);
@@ -927,7 +941,7 @@ function provRow(r) {
   }
   const pb = el("button", "ibtn", "🩺"); pb.title = t("row_probe"); pb.setAttribute("aria-label", t("row_probe"));
   pb.onclick = async () => { pb.disabled = true; const p = await msg({ action: "probe", slug: r.slug }); probes[r.slug] = { ...p, at: Date.now() }; await loadStats(false); renderAll(); };
-  row.append(pb);
+  row.append(pb, el("span", "chev", expanded.has(r.slug) ? "▾" : "▸"));
   return row;
 }
 // Duplicates (same account twice), retired providers, connections dead for days — one cleanup card.
@@ -995,14 +1009,17 @@ function renderTable() {
     const sp = el("td"); sp.append(spark(r.h)); tr.append(sp);
     tr.append(el("td", "c-wide " + (r.status === "bad" ? "bad" : "mut"), r.status === "bad" ? humanErr(r.pr) : "—"));
     const toggle = () => { if (tableSel.has(r.slug)) tableSel.delete(r.slug); else tableSel.add(r.slug); renderTable(); };
-    tr.onclick = (e) => { if (e.target !== cb) toggle(); };
+    tr.onclick = (e) => { if (e.target === cb || e.target.closest(".c-sel")) return; if (expanded.has(r.slug)) expanded.delete(r.slug); else expanded.add(r.slug); renderTable(); };
+    td0.onclick = (e) => { if (e.target !== cb) toggle(); };
     cb.onchange = toggle;
+    if (expanded.has(r.slug)) tr.classList.add("open");
     body.append(tr);
+    if (expanded.has(r.slug)) { const dtr = el("tr", "dtr"); const dtd = el("td"); dtd.colSpan = 9; dtd.append(provDetail(r)); dtr.append(dtd); body.append(dtr); }
   }
   if (!shown.length) { const tr = el("tr"); const td = el("td", "mut", t("popup_nothingFound")); td.colSpan = 9; tr.append(td); body.append(tr); }
   $("tableSelAll").checked = shown.length > 0 && shown.every((r) => tableSel.has(r.slug));
   $("tableSelAll").onchange = () => { const on = $("tableSelAll").checked; for (const r of shown) on ? tableSel.add(r.slug) : tableSel.delete(r.slug); renderTable(); };
-  $("tableSelN").textContent = tableSel.size ? t("table_selN", [String(tableSel.size)]) : t("table_hint");
+  $("tableSelN").textContent = tableSel.size ? t("table_selN", [String(tableSel.size)]) : t("table_hint2");
   $("tableRefreshSel").disabled = !tableSel.size;
   const badIds = allConns.filter((c) => tableSel.has(c.provider) && (isBadConn(c) || kindOf(c.provider) === "retired")).map((c) => c.id);
   const del = $("tableDelSel"); del.disabled = !badIds.length;
@@ -1155,7 +1172,7 @@ $("fullBtn").addEventListener("click", () => chrome.tabs.create({ url: chrome.ru
 // Stats live in the SW's storage; site checks / cookie expiry are refreshed when stale.
 async function loadStats(heavy = true) {
   const s = await msg({ action: "getStats" });
-  hist = (s && s.hist) || {}; sites = (s && s.sites) || {};
+  hist = (s && s.hist) || {}; sites = (s && s.sites) || {}; lastRefresh = (s && s.lastRefresh) || lastRefresh;
   if (!heavy) return;
   const webKeys = Object.keys(conns).filter((k) => OMNI_WEB_MAP[k]);
   const stale = webKeys.filter((k) => !sites[k] || Date.now() - sites[k].at > 30 * 60 * 1000);
@@ -1170,14 +1187,205 @@ async function loadStats(heavy = true) {
 }
 function renderAll() { renderProblems(); renderDash(); if (curPane === "table") renderTable(); if (curPane === "wizard") renderWizard(); renderManage(); renderWeb(); keyPaneFill(); }
 
+// ── provider details (Pulse row / Table row expand): models, connections, the right next action ──
+let modelList = null; // [{id}] from /v1/models — loaded once per popup open, on first need
+const expanded = new Set();
+async function ensureModels() {
+  if (modelList) return modelList;
+  const r = await msg({ action: "models" });
+  modelList = (r && r.ok && r.models) || [];
+  return modelList;
+}
+const modelsOf = (slug) => (modelList || []).filter((m) => m.id.startsWith(slug + "/")).map((m) => m.id);
+const connName = (c) => c.name || providerLabel(c.provider);
+
+// Send the user to log in again; the SW finishes the add itself once the session shows up.
+async function loginAgain(slug) {
+  const w = OMNI_WEB_MAP[slug]; if (!w) return;
+  await msg({ action: "autoAdd", key: slug });
+  chrome.tabs.create({ url: loginTarget(w), active: true });
+}
+function nextActionBtns(r, box) {
+  const row = el("div", "dact");
+  const probe = el("button", "ghost sm", t("row_probe"));
+  probe.onclick = async () => { probe.disabled = true; probe.textContent = t("popup_probingLive"); const p = await msg({ action: "probe", slug: r.slug }); probes[r.slug] = { ...p, at: Date.now() }; await loadStats(false); renderAll(); };
+  row.append(probe);
+  if (r.kind === "web") {
+    const rf = el("button", "ghost sm", t("det_refresh")); rf.title = t("row_refresh");
+    rf.onclick = () => runRefresh([r.slug], rf);
+    const li = el("button", "ghost sm", t("det_login")); li.title = t("det_loginTitle");
+    li.onclick = () => loginAgain(r.slug);
+    row.append(rf, li);
+  } else if (r.kind === "key") {
+    const k = OMNI_APIKEY_MAP[r.slug];
+    const nk = el("button", "ghost sm", t("det_newKey"));
+    nk.onclick = () => { if (k && k.get) chrome.tabs.create({ url: k.get }); keyExpanded = r.slug; goPane("key"); renderKeyList(); };
+    row.append(nk);
+  } else if (r.kind === "oauth") {
+    const o = OMNI_OAUTH_MAP[r.slug];
+    const rc = el("button", "ghost sm", t("oauth_reconnect"));
+    rc.onclick = () => { goPane("oauth"); if (o.kind === "redirect") connectOauth(o.slug); else if (o.deviceFlow && !o.broken) startOauth(o.slug); };
+    row.append(rc);
+  }
+  if (r.kind !== "retired") {
+    const ch = el("button", "ghost sm", t("det_chat"));
+    ch.onclick = () => openChat(r.slug);
+    row.append(ch);
+  }
+  box.append(row);
+}
+function provDetail(r) {
+  const box = el("div", "det");
+  const facts = el("div", "det-facts");
+  const verdict = r.status === "bad" ? "🔴 " + humanErr(r.pr) + (r.pr && r.pr.detail ? " — " + String(r.pr.detail).slice(0, 90) : "")
+    : r.pr && r.pr.alive === true ? "🟢 " + t("det_works", [fmtMs(r.pr.ms)])
+    : r.status === "retired" ? "🗑 " + t("kind_retired") : "⚪ " + t("probe_never");
+  facts.append(el("div", null, verdict));
+  if (r.pr && r.pr.at) facts.append(el("div", "mut", t("popup_checkedAgo", [ago(r.pr.at)]) + (r.pr.model ? " · " + r.pr.model : "")));
+  if (r.kind === "web") {
+    facts.append(el("div", "mut", (r.site ? (r.site.up === true ? "🌐 " + t("det_siteUp", [fmtMs(r.site.ms)]) : r.site.up === false ? "🌐 " + t("site_down") : "🌐 " + t("det_siteUnknown")) : "🌐 —")
+      + " · " + (r.expDays != null ? "🍪 " + t("exp_soon", [expText(r)]) : "🍪 " + t("det_expUnknown"))));
+  }
+  box.append(facts);
+  nextActionBtns(r, box);
+  // Models this provider exposes through OmniRoute (what Claude Code / OpenCode can actually call).
+  const mb = el("div", "det-models"); box.append(mb);
+  const fill = () => {
+    mb.textContent = "";
+    const ids = modelsOf(r.slug);
+    const ttl = el("div", "grp-title", t("det_models")); ttl.append(el("span", "n", String(ids.length))); mb.append(ttl);
+    if (!ids.length) { mb.append(el("p", "hint-sm", modelList ? t("det_noModels") : t("det_loadingModels"))); return; }
+    const chips = el("div", "chips");
+    for (const id of ids.slice(0, 40)) {
+      const c = el("button", "chip mono-chip", id.slice(r.slug.length + 1)); c.title = t("det_copyModel", [id]);
+      c.onclick = () => navigator.clipboard.writeText(id).then(() => { c.textContent = "✓ " + t("popup_copied"); setTimeout(() => (c.textContent = id.slice(r.slug.length + 1)), 1200); });
+      chips.append(c);
+    }
+    mb.append(chips);
+    if (ids.length > 40) mb.append(el("p", "hint-sm", t("wiz_more", [String(ids.length - 40)])));
+  };
+  fill(); if (!modelList) ensureModels().then(fill);
+  // Every connection of this provider, with rename / enable-disable / delete.
+  const list = allConns.filter((c) => c.provider === r.slug);
+  if (list.length) {
+    const ttl = el("div", "grp-title", t("det_conns")); ttl.append(el("span", "n", String(list.length))); box.append(ttl);
+    for (const c of list) {
+      const bad = isBadConn(c);
+      const row = el("div", "prob" + (bad ? "" : " okrow"));
+      const info = el("div", "prob-info");
+      const pn = el("div", "prob-name", connName(c)); pn.title = connName(c); info.append(pn);
+      info.append(el("div", "prob-sub", c.isActive === false ? t("popup_stateOff") : bad ? t("popup_stateBad") : t("popup_stateOk")));
+      row.append(info);
+      connActions(row, info, c, renderAll);
+      box.append(row);
+    }
+  }
+  return box;
+}
+
+// ── refresh report: what "Обновить все сессии" actually did, with the next step per provider ──
+let lastRefresh = null, refreshDismissed = 0;
+const REFRESH_STATE = {
+  ok: ["ok", "🟢", () => t("rs_ok")], needLogin: ["bad", "🔑", () => t("rs_needLogin")], noSession: ["bad", "🔑", () => t("rs_noSession")],
+  unknown: ["mut", "⚪", () => t("rs_unknown")], error: ["bad", "🔴", () => t("rs_error")],
+};
+function renderRefreshReport() {
+  const box = $("dashRefresh"); box.textContent = "";
+  if (!lastRefresh || !lastRefresh.results || lastRefresh.at <= refreshDismissed) return;
+  const entries = Object.entries(lastRefresh.results);
+  if (!entries.length) return;
+  const card = el("div", "rep");
+  const h = el("div", "rep-h");
+  const okN = entries.filter(([, v]) => v.state === "ok").length;
+  h.append(el("b", null, t("rs_title", [String(okN), String(entries.length)])), el("span", "mut", " · " + ago(lastRefresh.at)), el("span", "grow"));
+  const x = el("button", "ibtn", "✕"); x.title = t("web_dismissTitle"); x.setAttribute("aria-label", t("web_dismissLabel"));
+  x.onclick = () => { refreshDismissed = lastRefresh.at; chrome.storage.local.set({ refresh_dismissed: refreshDismissed }); renderRefreshReport(); };
+  h.append(x); card.append(h);
+  const order = { needLogin: 0, noSession: 0, error: 1, unknown: 2, ok: 3 };
+  for (const [key, v] of entries.sort((a, b) => order[a[1].state] - order[b[1].state])) {
+    const [cls, ico, msgKey] = REFRESH_STATE[v.state] || REFRESH_STATE.unknown;
+    const row = el("div", "rep-row");
+    row.append(el("span", "rep-ico", ico), el("span", "pn", providerLabel(key)), el("span", "pm " + cls, msgKey()));
+    if (v.state === "needLogin" || v.state === "noSession") {
+      const go = el("button", "sm", t("det_login")); go.title = t("det_loginTitle");
+      go.onclick = () => loginAgain(key);
+      row.append(go);
+    }
+    card.append(row);
+  }
+  card.append(el("p", "hint-sm", t("rs_hint")));
+  box.append(card);
+}
+
+// ── test chat: talk to any connected provider/model right here ─────────────
+const chatLog = [];
+async function openChat(slug) {
+  goPane("chat");
+  await fillChatProviders(slug);
+}
+async function fillChatProviders(pick) {
+  await ensureModels();
+  const sel = $("chatProv"), cur = pick || sel.value;
+  sel.textContent = "";
+  const slugs = [...new Set((modelList || []).map((m) => m.id.split("/")[0]))]
+    .filter((s) => (conns[s] && conns[s].total) || s.startsWith("auto"))
+    .sort((a, b) => providerLabel(a).localeCompare(providerLabel(b)));
+  for (const s of slugs) { const o = el("option", null, `${providerLabel(s)} (${modelsOf(s).length})`); o.value = s; sel.append(o); }
+  if (!slugs.length) { const o = el("option", null, t("chat_noModels")); o.value = ""; sel.append(o); }
+  if (cur && slugs.includes(cur)) sel.value = cur;
+  fillChatModels();
+}
+function fillChatModels() {
+  const sel = $("chatModel"); sel.textContent = "";
+  for (const id of modelsOf($("chatProv").value)) { const o = el("option", null, id.slice(id.indexOf("/") + 1)); o.value = id; sel.append(o); }
+}
+function renderChat() {
+  const box = $("chatLogBox"); box.textContent = "";
+  if (!chatLog.length) { box.append(el("p", "hint-sm", t("chat_hint"))); return; }
+  for (const m of chatLog) {
+    const b = el("div", "bubble " + m.role + (m.err ? " err" : ""));
+    b.append(el("div", "btext", m.content));
+    if (m.meta) b.append(el("div", "bmeta", m.meta));
+    box.append(b);
+  }
+  box.scrollTop = box.scrollHeight;
+  $("scroll").scrollTop = $("scroll").scrollHeight;
+}
+async function sendChat() {
+  const model = $("chatModel").value, text = $("chatIn").value.trim();
+  if (!model || !text) return;
+  chatLog.push({ role: "user", content: text });
+  $("chatIn").value = ""; renderChat();
+  const btn = $("chatSend"); btn.disabled = true; btn.textContent = t("chat_waiting");
+  const history = chatLog.filter((m) => !m.err).map((m) => ({ role: m.role, content: m.content })).slice(-12);
+  const r = await msg({ action: "chat", model, messages: history });
+  btn.disabled = false; btn.textContent = t("chat_send");
+  if (r && r.ok) {
+    const u = r.usage ? ` · ${t("chat_tokens", [String(r.usage.total_tokens || (r.usage.prompt_tokens || 0) + (r.usage.completion_tokens || 0))])}` : "";
+    chatLog.push({ role: "assistant", content: r.text, meta: `${r.model} · ${fmtMs(r.ms)}${u}` });
+  } else {
+    chatLog.push({ role: "assistant", err: true, content: "🔴 " + String((r && r.error) || t("popup_error")), meta: `${model} · ${fmtMs(r && r.ms)}` });
+  }
+  renderChat();
+}
+$("chatProv").addEventListener("change", fillChatModels);
+$("chatSend").addEventListener("click", sendChat);
+$("chatIn").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); } });
+$("chatClear").addEventListener("click", () => { chatLog.length = 0; renderChat(); });
+
 let stored = {};
 $("openDash").addEventListener("click", () => chrome.tabs.create({ url: OMNI_BASE + "/home" }));
 $("probeAllBtn").addEventListener("click", runProbeAll);
-chrome.runtime.onMessage.addListener(async (m) => {
-  if (!m) return;
+// NOT an async listener: runtime.sendMessage reaches EVERY extension page, and in Firefox a listener that
+// returns a Promise answers the message — so a second open popup/full tab answered the other one's "ping"
+// with undefined and it read the server as down. Broadcasts only (m.type); requests (m.action) aren't ours.
+chrome.runtime.onMessage.addListener((m) => {
+  if (!m || !m.type) return;
   if (m.type === "probeProgress") onProbeProgress(m);
   else if (m.type === "refreshProgress") onRefreshProgress(m);
-  else if (m.type === "healthSwept") { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; await loadStats(false); renderAll(); } // live-refresh verdicts after an unattended sweep
+  else if (m.type === "healthSwept") { // live-refresh verdicts after an unattended sweep
+    msg({ action: "getProbes" }).then(async (pr) => { probes = (pr && pr.probes) || {}; await loadStats(false); renderAll(); });
+  }
 });
 
 // ── settings panel ───────────────────────────────────────────────────────────
@@ -1305,7 +1513,8 @@ else if (windowed) {
 (async () => {
   chrome.storage.local.set({ last_active: Date.now() }); // gate the unattended health sweep to recent use
   msg({ action: "getSettings" }).then((r) => applyTheme(r && r.settings && r.settings.theme)); // apply saved theme ASAP
-  stored = await chrome.storage.local.get(["sel_apikey", "sel_tab", "wiz_ignore", "wiz_import"]);
+  stored = await chrome.storage.local.get(["sel_apikey", "sel_tab", "wiz_ignore", "wiz_import", "refresh_dismissed"]);
+  refreshDismissed = stored.refresh_dismissed || 0;
   wizIgnore = stored.wiz_ignore || []; wizImport = stored.wiz_import || [];
   const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
   await detectActiveTab();

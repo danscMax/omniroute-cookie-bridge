@@ -863,9 +863,6 @@
   "table_selN": {
     "message": "selected: $1"
   },
-  "table_hint": {
-    "message": "click a row to select it"
-  },
   "table_refreshSel": {
     "message": "🔄 Refresh"
   },
@@ -994,5 +991,110 @@
   },
   "bg_noSessionCookie": {
     "message": "no session cookie on the site — log in"
+  },
+  "nav_chat": {
+    "message": "Test chat"
+  },
+  "row_open": {
+    "message": "Click for details, models and actions"
+  },
+  "det_refresh": {
+    "message": "↻ Refresh session"
+  },
+  "det_login": {
+    "message": "🔑 Log in again"
+  },
+  "det_loginTitle": {
+    "message": "Opens the login page. Log in and send any message — the extension adds the session itself and notifies you."
+  },
+  "det_newKey": {
+    "message": "🔑 New key"
+  },
+  "det_chat": {
+    "message": "💬 Chat"
+  },
+  "det_works": {
+    "message": "working · answered in $1"
+  },
+  "det_siteUp": {
+    "message": "site is up ($1)"
+  },
+  "det_siteUnknown": {
+    "message": "site: not checked"
+  },
+  "det_expUnknown": {
+    "message": "cookie expiry unknown"
+  },
+  "det_models": {
+    "message": "Models via OmniRoute"
+  },
+  "det_noModels": {
+    "message": "OmniRoute exposes no models for this provider — it can't be called right now."
+  },
+  "det_loadingModels": {
+    "message": "Loading models…"
+  },
+  "det_copyModel": {
+    "message": "Click to copy “$1” — the model name for Claude Code / OpenCode"
+  },
+  "det_conns": {
+    "message": "Connections"
+  },
+  "rs_title": {
+    "message": "Session refresh: $1 of $2 working"
+  },
+  "rs_ok": {
+    "message": "refreshed, working"
+  },
+  "rs_needLogin": {
+    "message": "session ended — log in"
+  },
+  "rs_noSession": {
+    "message": "site gave no session — log in"
+  },
+  "rs_unknown": {
+    "message": "refreshed, check gave no answer"
+  },
+  "rs_error": {
+    "message": "failed to send to OmniRoute"
+  },
+  "rs_hint": {
+    "message": "The tabs opened and closed by themselves — that's how fresh cookies were grabbed. For 🔑 press “Log in again”: log in on the site, the rest happens by itself."
+  },
+  "table_hint2": {
+    "message": "☐ selects, click a row for details"
+  },
+  "chat_prov": {
+    "message": "Provider"
+  },
+  "chat_model": {
+    "message": "Model"
+  },
+  "chat_ph": {
+    "message": "Type a message… (Ctrl+Enter to send)"
+  },
+  "chat_send": {
+    "message": "Send"
+  },
+  "chat_clear": {
+    "message": "Clear"
+  },
+  "chat_waiting": {
+    "message": "Waiting…"
+  },
+  "chat_tokens": {
+    "message": "$1 tokens"
+  },
+  "chat_hint": {
+    "message": "Try any connection with a live request: pick a provider and model, say hi. The reply goes through your OmniRoute — same as Claude Code / OpenCode."
+  },
+  "chat_noModels": {
+    "message": "no models available"
+  },
+  "key_stepsDeep": {
+    "message": "On the page that opens: log in → “Create key” → copy the key and paste it below."
+  },
+  "key_stepsHome": {
+    "message": "I'll open the provider's site: log in → find “API Keys” in the menu (usually Settings or Dashboard) → create a key and paste it below."
   }
 }

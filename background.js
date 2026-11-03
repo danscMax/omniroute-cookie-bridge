@@ -301,6 +301,8 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "siteCheck": siteCheck(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
     case "cookieExpiry": cookieExpiry(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
     case "omniVersion": omniVersion().then(send); return true;
+    case "models": fetchModels().then((r) => send({ ok: r.ok, models: (r.models || []).map((m) => ({ id: m.id, owned_by: m.owned_by || "" })) })); return true;
+    case "chat": chatOnce(req.model, req.messages).then(send); return true;
     case "autoAdd": LOC.set({ ["autoadd_" + req.key]: Date.now() }).then(() => send({ ok: true })); return true;
     case "getStats":
       LOC.get(null).then((all) => {
@@ -591,6 +593,37 @@ async function chatProbe(modelId) {
   const r = await runInDash(chatProbeInPage, [modelId], 32000); // Firefox: via the tab (a direct fetch hangs)
   if (r && r.fetched) return r;
   return { fetched: true, netErr: true, msg: String((r && r.error) || "").slice(0, 120) };
+}
+// Test chat (popup "Чат"): one non-streamed completion, timed. Same direct-in-Chrome / tab-in-Firefox split
+// as the probe. The reply text is returned to the popup only — nothing is stored.
+function chatInPage(model, messages) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 90000);
+  return fetch("/v1/chat/completions", {
+    method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
+    body: JSON.stringify({ model, messages, max_tokens: 800, stream: false }),
+  }).then(async (r) => {
+    const d = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, data: d };
+  }).catch((e) => ({ ok: false, status: 0, data: { error: { message: String(e).slice(0, 160) } } })).finally(() => clearTimeout(to));
+}
+async function chatOnce(model, messages) {
+  if (!model || !Array.isArray(messages) || !messages.length) return { ok: false, error: t("bg_noIdData") };
+  const t0 = Date.now();
+  let r = null;
+  if (CAN_DIRECT_FETCH) {
+    try {
+      const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 90000);
+      const res = await fetch(OMNI_BASE + "/v1/chat/completions", { method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ model, messages, max_tokens: 800, stream: false }) }).finally(() => clearTimeout(to));
+      r = { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+    } catch (e) { r = null; }
+  }
+  if (!r) r = await runInDash(chatInPage, [model, messages], 95000);
+  const ms = Date.now() - t0;
+  const d = (r && r.data) || {};
+  const text = d.choices && d.choices[0] && d.choices[0].message ? String(d.choices[0].message.content || "") : "";
+  if (r && r.ok && text) return { ok: true, text, ms, usage: d.usage || null, model: d.model || model };
+  return { ok: false, ms, status: r && r.status, error: (d.error && (d.error.message || d.error)) || (r && r.error) || ("HTTP " + (r && r.status)) };
 }
 async function probeModel(models, slug) {
   const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
