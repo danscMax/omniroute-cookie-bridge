@@ -40,7 +40,9 @@ async function hasHostAccess() {
   try { return await chrome.permissions.contains({ origins: HOST_ORIGINS }); } catch { return true; } // no permissions API → assume ok
 }
 async function refreshHostBanner() {
-  const ok = await hasHostAccess();
+  // Firefox-only problem: Chrome grants the manifest's host access itself, and its optional portless
+  // pattern reads as "not granted" there — the banner would nag Chrome users about Firefox.
+  const ok = !/Firefox\//.test(navigator.userAgent) || await hasHostAccess();
   $("permBanner").classList.toggle("hide", ok);
   return ok;
 }
@@ -61,32 +63,43 @@ let serverOnline = false;
 let lastWebSig = null;
 
 // ── tabs ────────────────────────────────────────────────────────────────────
-const tabEls = [...document.querySelectorAll(".tab")];
-function selectTab(t) {
-  tabEls.forEach((x) => { const on = x === t; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
-  for (const pane of ["web", "key", "oauth"]) $("pane-" + pane).classList.toggle("hide", pane !== t.dataset.pane);
-  $("settingsPanel").classList.add("hide"); // tab switch closes the settings panel
-  chrome.storage.local.set({ sel_tab: t.dataset.pane }); // remember across opens
+// Rail navigation: every section is a pane; the rail buttons are a vertical WAI-ARIA tablist.
+const PANES = ["dash", "wizard", "web", "key", "oauth", "table", "set"];
+const PANE_TITLE = { dash: "nav_dash", wizard: "nav_wizard", web: "nav_web", key: "nav_key", oauth: "nav_oauth", table: "nav_table", set: "popup_settings" };
+const tabEls = [...document.querySelectorAll(".rail .tab")];
+let curPane = "dash";
+function selectTab(tb) {
+  curPane = tb.dataset.pane;
+  tabEls.forEach((x) => { const on = x === tb; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
+  for (const pane of PANES) $("pane-" + pane).classList.toggle("hide", pane !== curPane);
+  $("viewTitle").textContent = t(PANE_TITLE[curPane]);
+  // The global search only means something on the catalog panes; hide it elsewhere so the view breathes.
+  document.querySelector(".gsearch").classList.toggle("hide", !["web", "key", "oauth"].includes(curPane));
+  if (curPane === "wizard") renderWizard();
+  if (curPane === "table") renderTable();
+  if (curPane !== "set") chrome.storage.local.set({ sel_tab: curPane }); // remember across opens
+  $("scroll").scrollTop = 0;
 }
-tabEls.forEach((t, i) => {
-  t.addEventListener("click", () => selectTab(t));
-  t.addEventListener("keydown", (e) => { // ←/→ roving between tabs (WAI-ARIA tablist)
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+const goPane = (p) => { const tb = tabEls.find((x) => x.dataset.pane === p); if (tb) selectTab(tb); };
+tabEls.forEach((tb, i) => {
+  tb.addEventListener("click", () => selectTab(tb));
+  tb.addEventListener("keydown", (e) => { // ↑/↓ roving between rail items (vertical tablist)
+    if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(e.key)) return;
     e.preventDefault();
-    const next = tabEls[(i + (e.key === "ArrowRight" ? 1 : tabEls.length - 1)) % tabEls.length];
+    const fwd = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const next = tabEls[(i + (fwd ? 1 : tabEls.length - 1)) % tabEls.length];
     next.focus(); selectTab(next);
   });
 });
-// Keyboard shortcuts (ignored while typing in a field): 1/2/3 jump to a tab, "/" focuses its search.
+// Keyboard shortcuts (ignored while typing in a field): 1..6 jump to a section, "/" focuses the search.
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return; // don't hijack Ctrl+1 etc.
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  const idx = { "1": 0, "2": 1, "3": 2 }[e.key];
-  if (idx != null && tabEls[idx]) { tabEls[idx].click(); return; }
+  const idx = parseInt(e.key, 10) - 1;
+  if (idx >= 0 && idx < 6 && tabEls[idx]) { tabEls[idx].click(); return; }
   if (e.key === "/") {
-    const on = document.querySelector(".tab.on");
-    const id = { web: "webSearch", key: "keySearch", oauth: "oauthSearch" }[on && on.dataset.pane];
-    if (id && $(id)) { e.preventDefault(); $(id).focus(); }
+    if (!["web", "key", "oauth"].includes(curPane)) goPane("web");
+    e.preventDefault(); $("globalSearch").focus();
   }
 });
 
@@ -154,6 +167,7 @@ function webCard(p, cap) {
   const capStale = Date.now() - cap.at > 6 * 60 * 60 * 1000;
   card.append(el("div", "sub" + (capStale ? " stale" : ""),
     `${capStale ? "⚠️" : "✅"} ${t("web_capturedN", [String(cap.cookieCount), ago(cap.at)])}${capStale ? " — " + t("web_captureStale") : ""}`));
+  if (cap.email) card.append(el("div", "conns", "👤 " + cap.email)); // which account this is (from the session JWT)
   const cl = connLine(p.slug); if (cl) card.append(cl);
   const input = el("input"); input.type = "text"; input.value = p.label; input.placeholder = t("web_accountNamePh");
   card.append(input);
@@ -729,7 +743,7 @@ function wireDeleteAll(btn, items) {
 async function loadConnections() {
   await fetchConnections();
   $("probeAllBtn").disabled = !connTotal;
-  setFooter(); renderProblems(); renderManage(); renderWeb(); keyPaneFill();
+  setFooter(); renderAll();
 }
 // Batch health check of every provider that has a live connection — with live progress + ETA.
 let probeStart = 0;
@@ -739,6 +753,7 @@ async function runProbeAll() {
   if (!slugs.length) { res.className = "res show mut"; res.textContent = t("popup_noConns"); return; }
   btn.disabled = true; prog.classList.remove("hide"); bar.style.width = "0%"; probeStart = Date.now();
   res.className = "res show pend"; res.textContent = t("popup_probingN", ["0", String(slugs.length)]);
+  msg({ action: "siteCheck", keys: slugs.filter((s) => OMNI_WEB_MAP[s]) }).then((r) => { if (r && r.sites) Object.assign(sites, r.sites); }); // site up? runs alongside
   const r = await msg({ action: "probeAll", slugs });
   const results = (r && r.results) || {};
   for (const k in results) probes[k] = { ...results[k], at: Date.now() };
@@ -750,7 +765,7 @@ async function runProbeAll() {
   res.textContent = t("popup_probeAllDone", [String(good), String(bad), String(slugs.length - good - bad)]);
   setTimeout(() => prog.classList.add("hide"), 900);
   btn.disabled = false;
-  renderWeb(); keyPaneFill(); renderProblems();
+  await loadStats(false); renderAll();
 }
 function onProbeProgress(m) {
   const bar = $("probeProgBar"), res = $("probeAllRes");
@@ -771,13 +786,398 @@ async function refresh() {
   refreshAistudio();
 }
 
+// ── stats shared by Pulse / Wizard / Table ──────────────────────────────────
+let hist = {};        // slug → [{at, a: alive, ms}] (7 days)
+let sites = {};       // web key → {up, ms, at}
+let expiry = {};      // web key → earliest session-cookie expiry (ms)
+let omniVer = null;   // {current, latest, updateAvailable}
+let dashFilter = "all", tableFilter = "all";
+const tableSel = new Set();
+let wizImport = [], wizIgnore = [], wizMode = "all";
+const wizSkip = new Set();
+const DAY = 24 * 60 * 60 * 1000;
+
+const kindOf = (slug) => OMNI_WEB_MAP[slug] ? "web" : OMNI_OAUTH_MAP[slug] ? "oauth" : OMNI_APIKEY_MAP[slug] ? "key" : "retired";
+const KIND_LABEL = { web: () => t("kind_web"), key: () => t("kind_key"), oauth: () => t("kind_oauth"), retired: () => t("kind_retired") };
+const fmtMs = (ms) => (ms == null ? "—" : ms < 1000 ? ms + t("unit_ms") : (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + t("unit_s"));
+const isBadConn = (c) => c.hasError || c.testStatus === "banned" || c.testStatus === "error";
+
+// One row per provider that has connections — the unit Pulse/Table/Wizard reason about.
+function providerRows() {
+  const now = Date.now();
+  return Object.keys(conns).map((slug) => {
+    const c = conns[slug], pr = probes[slug], kind = kindOf(slug);
+    const h = hist[slug] || [];
+    const site = kind === "web" ? sites[slug] : null;
+    const exp = kind === "web" ? expiry[slug] : null;
+    const expDays = exp ? (exp - now) / DAY : null;
+    const dead = (c.bad > 0) || (pr && pr.alive === false);
+    const warns = [];
+    if (expDays != null && expDays < 3) warns.push("exp");
+    if (site && site.up === false) warns.push("site");
+    if (pr && pr.ms > 20000) warns.push("slow");
+    const status = kind === "retired" ? "retired" : dead ? "bad" : warns.length ? "warn" : pr && pr.alive === true ? "ok" : "unk";
+    return { slug, kind, label: providerLabel(slug), total: c.total, good: c.good, bad: c.bad, pr, h, site, exp, expDays, warns, status, free: !!(OMNI_APIKEY_MAP[slug] && OMNI_APIKEY_MAP[slug].free) };
+  });
+}
+const FILTERS = [
+  ["all", () => t("flt_all"), () => true],
+  ["bad", () => t("flt_bad"), (r) => r.status === "bad" || r.status === "retired"],
+  ["warn", () => t("flt_warn"), (r) => r.status === "warn"],
+  ["web", () => t("flt_web"), (r) => r.kind === "web"],
+  ["key", () => t("flt_key"), (r) => r.kind === "key"],
+  ["oauth", () => t("flt_oauth"), (r) => r.kind === "oauth"],
+  ["free", () => t("flt_free"), (r) => r.free],
+];
+function renderFilters(box, cur, rows, onPick) {
+  box.textContent = "";
+  for (const [id, key, fn] of FILTERS) {
+    const n = rows.filter(fn).length;
+    if (id !== "all" && id !== cur && !n) continue; // an empty filter is noise
+    const b = el("button", "chip" + (id === cur ? " on" : ""));
+    b.append(document.createTextNode(key()), el("span", "cn", String(n)));
+    b.setAttribute("aria-pressed", String(id === cur));
+    b.onclick = () => onPick(id);
+    box.append(b);
+  }
+}
+const filterFn = (id) => (FILTERS.find((f) => f[0] === id) || FILTERS[0])[2];
+function spark(h) {
+  const s = el("span", "spark"); s.setAttribute("aria-hidden", "true");
+  const last = h.slice(-7);
+  for (let i = 0; i < 7 - last.length; i++) s.append(el("i", "u"));
+  for (const x of last) s.append(el("i", x.a === false ? "x" : x.a === true ? "" : "u"));
+  return s;
+}
+function expText(r) {
+  if (r.expDays == null) return "";
+  if (r.expDays < 0) return t("exp_gone");
+  return r.expDays < 1 ? t("exp_hours", [String(Math.max(1, Math.round(r.expDays * 24)))]) : t("exp_days", [String(Math.round(r.expDays))]);
+}
+function rowMeta(r) {
+  if (r.status === "retired") return [t("kind_retired"), "bad"];
+  if (r.status === "bad") return [humanErr(r.pr), "bad"];
+  if (r.warns.includes("site")) return [t("site_down"), "warn"];
+  if (r.warns.includes("exp")) return [t("exp_soon", [expText(r)]), "warn"];
+  if (r.warns.includes("slow")) return [t("probe_slow", [fmtMs(r.pr.ms)]), "warn"];
+  if (r.pr && r.pr.alive === true) return [fmtMs(r.pr.ms), ""];
+  return [t("probe_never"), ""];
+}
+// A probe verdict in words a human acts on (401 → "вход истёк", 429 → "лимит" …).
+function humanErr(pr) {
+  if (!pr) return t("err_flagged");
+  const st = pr.status, d = String(pr.detail || "");
+  if (st === 401 || st === 403 || /unauthori|forbidden|login|expired/i.test(d)) return t("err_auth");
+  if (st === 429) return t("err_limit");
+  if (st >= 500) return t("err_upstream");
+  if (/timeout|abort/i.test(d)) return t("err_timeout");
+  return d ? d.slice(0, 40) : t("err_flagged");
+}
+
+// ── Pulse ───────────────────────────────────────────────────────────────────
+function renderDash() {
+  const rows = providerRows();
+  const live = rows.filter((r) => r.status === "ok" || r.status === "warn" || r.status === "unk").length;
+  const bad = rows.filter((r) => r.status === "bad" || r.status === "retired").length;
+  $("dashOk").textContent = rows.length ? `${live}/${rows.length}` : "—";
+  $("dashBad").textContent = bad ? t("dash_broken", [String(bad)]) : "";
+  $("dashMeter").style.width = rows.length ? Math.round((live / rows.length) * 100) + "%" : "0%";
+  const sub = $("dashSub"); sub.textContent = "";
+  sub.append(el("span", null, t("dash_conns", [String(connTotal)])));
+  if (omniVer && omniVer.current) {
+    sub.append(el("span", null, "OmniRoute v" + omniVer.current));
+    if (omniVer.updateAvailable && omniVer.latest) {
+      const u = el("span", "upd", t("dash_update", [omniVer.latest]));
+      u.title = t("dash_updateTitle");
+      u.onclick = () => chrome.tabs.create({ url: OMNI_BASE + "/dashboard/settings" });
+      sub.append(u);
+    }
+  }
+  const lastAt = Math.max(0, ...Object.values(probes).map((p) => p.at || 0));
+  if (lastAt) sub.append(el("span", null, t("popup_checkedAgo", [ago(lastAt)])));
+  const missing = missingWeb().length;
+  $("fillMissingBtn").textContent = missing ? t("dash_fillMissingN", [String(missing)]) : t("dash_fillMissing");
+  renderFilters($("dashFilters"), dashFilter, rows, (id) => { dashFilter = id; renderDash(); });
+  renderCleanup();
+  const box = $("dashList"); box.textContent = "";
+  const shown = rows.filter(filterFn(dashFilter)).filter((r) => r.status !== "bad"); // broken ones live in the attention band above
+  const groups = [["warn", () => t("dash_grpWarn")], ["ok", () => t("dash_grpOk")], ["unk", () => t("dash_grpUnk")]];
+  for (const [st, key] of groups) {
+    const g = shown.filter((r) => r.status === st).sort((a, b) => a.label.localeCompare(b.label));
+    if (!g.length) continue;
+    const ttl = el("div", "grp-title", key()); ttl.append(el("span", "n", String(g.length))); box.append(ttl);
+    for (const r of g) box.append(provRow(r));
+  }
+  if (!rows.length && serverOnline && !connUnreachable) {
+    const e = el("div", "empty"); e.append(el("b", null, t("dash_emptyTitle")), document.createElement("br"), document.createTextNode(t("dash_emptyHint")));
+    box.append(e);
+  }
+  renderRail();
+}
+function provRow(r) {
+  const row = el("div", "prow " + (r.status === "warn" ? "warn" : ""));
+  const nm = el("span", "pn", r.label); nm.title = `${r.label} · ${r.slug}`;
+  row.append(nm, el("span", "pc", `${r.good || 0}/${r.total}`), spark(r.h));
+  const [meta, cls] = rowMeta(r);
+  row.append(el("span", "pm " + cls, meta));
+  if (r.kind === "web") {
+    const rf = el("button", "ibtn", "↻"); rf.title = t("row_refresh"); rf.setAttribute("aria-label", t("row_refresh"));
+    rf.onclick = () => runRefresh([r.slug], rf);
+    row.append(rf);
+  }
+  const pb = el("button", "ibtn", "🩺"); pb.title = t("row_probe"); pb.setAttribute("aria-label", t("row_probe"));
+  pb.onclick = async () => { pb.disabled = true; const p = await msg({ action: "probe", slug: r.slug }); probes[r.slug] = { ...p, at: Date.now() }; await loadStats(false); renderAll(); };
+  row.append(pb);
+  return row;
+}
+// Duplicates (same account twice), retired providers, connections dead for days — one cleanup card.
+function cleanupInfo() {
+  const dup = [], retired = [], longDead = [];
+  const byAcc = {};
+  for (const c of allConns) {
+    const acc = (c.name || "").split(" · ").pop();
+    if (acc && c.name.includes(" · ")) (byAcc[c.provider + "|" + acc] = byAcc[c.provider + "|" + acc] || []).push(c);
+    if (kindOf(c.provider) === "retired") retired.push(c);
+    else if (isBadConn(c)) {
+      const h = hist[c.provider] || [];
+      let since = null;
+      for (let i = h.length - 1; i >= 0 && h[i].a === false; i--) since = h[i].at;
+      if (since && Date.now() - since > 3 * DAY) longDead.push(c);
+    }
+  }
+  for (const k in byAcc) {
+    const g = byAcc[k]; if (g.length < 2) continue;
+    const keep = g.find((c) => !isBadConn(c) && c.isActive !== false) || g[0];
+    for (const c of g) if (c !== keep) dup.push(c);
+  }
+  return { dup, retired, longDead };
+}
+function renderCleanup() {
+  const box = $("dashCleanup"); box.textContent = "";
+  const { dup, retired, longDead } = cleanupInfo();
+  const ids = [...new Set([...dup, ...retired, ...longDead].map((c) => c.id))];
+  if (!ids.length) return;
+  const card = el("div", "clean");
+  const h = el("div", "clean-h", "🧹 " + t("clean_title"));
+  h.append(el("span", "grow"));
+  const go = el("button", "ghost sm danger", t("clean_go", [String(ids.length)]));
+  armConfirm(go, t("clean_go", [String(ids.length)]), t("popup_deleteAllConfirm", [String(ids.length)]), async () => {
+    for (const id of ids) await msg({ action: "deleteConn", id });
+    loadConnections();
+  });
+  h.append(go); card.append(h);
+  const ul = el("ul");
+  if (dup.length) ul.append(el("li", null, t("clean_dup", [String(dup.length)])));
+  if (retired.length) ul.append(el("li", null, t("clean_retired", [String(retired.length), [...new Set(retired.map((c) => c.provider))].join(", ")])));
+  if (longDead.length) ul.append(el("li", null, t("clean_dead", [String(longDead.length)])));
+  card.append(ul); box.append(card);
+}
+
+// ── Table ───────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = providerRows();
+  renderFilters($("tableFilters"), tableFilter, rows, (id) => { tableFilter = id; renderTable(); });
+  const order = { bad: 0, retired: 0, warn: 1, unk: 2, ok: 3 };
+  const shown = rows.filter(filterFn(tableFilter)).sort((a, b) => order[a.status] - order[b.status] || a.label.localeCompare(b.label));
+  for (const s of [...tableSel]) if (!rows.some((r) => r.slug === s)) tableSel.delete(s);
+  const body = $("statBody"); body.textContent = "";
+  for (const r of shown) {
+    const tr = el("tr", (r.status === "bad" || r.status === "retired") ? "bad" : r.status === "warn" ? "warn" : "");
+    if (tableSel.has(r.slug)) tr.classList.add("sel");
+    const cb = el("input"); cb.type = "checkbox"; cb.checked = tableSel.has(r.slug); cb.setAttribute("aria-label", r.label);
+    const td0 = el("td", "c-sel"); td0.append(cb); tr.append(td0);
+    const name = el("td", "c-name", r.label); name.title = r.slug; tr.append(name);
+    tr.append(el("td", "c-wide mut", KIND_LABEL[r.kind]()));
+    tr.append(el("td", r.bad ? "bad" : "", `${r.good || 0}/${r.total}`));
+    tr.append(el("td", !r.site || r.site.up == null ? "mut" : r.site.up ? "ok" : "bad", !r.site || r.site.up == null ? "—" : r.site.up ? "✓" : "✗"));
+    tr.append(el("td", r.expDays == null ? "mut" : r.expDays < 3 ? "warn" : "", r.expDays == null ? "—" : expText(r)));
+    tr.append(el("td", r.pr && r.pr.ms > 20000 ? "warn" : "", fmtMs(r.pr && r.pr.ms)));
+    const sp = el("td"); sp.append(spark(r.h)); tr.append(sp);
+    tr.append(el("td", "c-wide " + (r.status === "bad" ? "bad" : "mut"), r.status === "bad" ? humanErr(r.pr) : "—"));
+    const toggle = () => { if (tableSel.has(r.slug)) tableSel.delete(r.slug); else tableSel.add(r.slug); renderTable(); };
+    tr.onclick = (e) => { if (e.target !== cb) toggle(); };
+    cb.onchange = toggle;
+    body.append(tr);
+  }
+  if (!shown.length) { const tr = el("tr"); const td = el("td", "mut", t("popup_nothingFound")); td.colSpan = 9; tr.append(td); body.append(tr); }
+  $("tableSelAll").checked = shown.length > 0 && shown.every((r) => tableSel.has(r.slug));
+  $("tableSelAll").onchange = () => { const on = $("tableSelAll").checked; for (const r of shown) on ? tableSel.add(r.slug) : tableSel.delete(r.slug); renderTable(); };
+  $("tableSelN").textContent = tableSel.size ? t("table_selN", [String(tableSel.size)]) : t("table_hint");
+  $("tableRefreshSel").disabled = !tableSel.size;
+  const badIds = allConns.filter((c) => tableSel.has(c.provider) && (isBadConn(c) || kindOf(c.provider) === "retired")).map((c) => c.id);
+  const del = $("tableDelSel"); del.disabled = !badIds.length;
+  del.textContent = t("table_delSel"); del.classList.remove("armed"); del.dataset.armed = "";
+  armConfirm(del, t("table_delSel"), t("popup_deleteAllConfirm", [String(badIds.length)]), async () => { for (const id of badIds) await msg({ action: "deleteConn", id }); tableSel.clear(); loadConnections(); });
+}
+$("tableRefreshSel").addEventListener("click", async () => {
+  const sel = [...tableSel];
+  const web = sel.filter((s) => kindOf(s) === "web"), other = sel.filter((s) => kindOf(s) !== "web");
+  if (web.length) await runRefresh(web, $("tableRefreshSel"));
+  if (other.length) { const r = await msg({ action: "probeAll", slugs: other }); for (const k in ((r && r.results) || {})) probes[k] = { ...r.results[k], at: Date.now() }; }
+  await loadStats(false); renderAll();
+});
+
+// ── Wizard ──────────────────────────────────────────────────────────────────
+const missingWeb = () => OMNI_WEB.filter((p) => !(conns[p.slug] && conns[p.slug].total) && !wizIgnore.includes(p.slug)).map((p) => p.slug);
+function buildWizQueue() {
+  const q = [];
+  if (wizMode !== "missing") {
+    for (const r of providerRows()) {
+      if (r.status === "bad") q.push({ kind: r.kind + "Fix", slug: r.slug, why: humanErr(r.pr), n: r.bad || r.total });
+      else if (r.status === "retired") q.push({ kind: "retired", slug: r.slug, why: t("kind_retired"), n: r.total });
+    }
+    for (const s of wizImport) if (!(conns[s] && conns[s].total)) q.push({ kind: "import", slug: s, why: t("wiz_whyImport") });
+  }
+  if (wizMode !== "fix") for (const s of missingWeb()) q.push({ kind: "webAdd", slug: s, why: t("wiz_whyMissing") });
+  return q.filter((it) => !wizSkip.has(it.kind + ":" + it.slug));
+}
+function renderWizard() {
+  const box = $("wizBox"); box.textContent = "";
+  const q = buildWizQueue();
+  if (!q.length) {
+    const d = el("div", "wiz-done"); d.append(el("span", "big", "🎉"), el("b", null, t("wiz_doneTitle")), document.createElement("br"), el("span", "hint-sm", t("wiz_doneHint")));
+    if (wizMode !== "all") { const all = el("button", "ghost sm", t("wiz_showAll")); all.style.marginTop = "12px"; all.onclick = () => { wizMode = "all"; renderWizard(); }; d.append(document.createElement("br"), all); }
+    box.append(d); renderRail(); return;
+  }
+  const it = q[0];
+  const step = el("div", "wiz-step");
+  step.append(el("span", null, t("wiz_step", [String(q.length)])), el("span", null, t("wiz_eta", [String(Math.max(1, Math.round(q.length * 0.5)))])));
+  box.append(step);
+  const bar = el("div", "wiz-bar"); const bi = el("i"); bi.style.width = Math.max(4, Math.round(100 / (q.length + 1))) + "%"; bar.append(bi); box.append(bar);
+  const card = el("div", "wiz-card");
+  const h = el("div", "wiz-h");
+  const ico = { webFix: "🍪", webAdd: "➕", oauthFix: "🔐", keyFix: "🔑", retired: "🗑", import: "⬆" }[it.kind] || "•";
+  const hT = el("div"); hT.style.minWidth = "0";
+  hT.append(el("div", "wiz-t", providerLabel(it.slug)), el("div", "wiz-why" + (it.kind === "webAdd" || it.kind === "import" ? " mut" : ""), it.why + (it.n ? " · " + t("wiz_conns", [String(it.n)]) : "")));
+  h.append(el("div", "wiz-ico", ico), hT); card.append(h);
+  const txt = el("p", "wiz-txt"); card.append(txt);
+  const go = el("button", "wiz-go"); card.append(go);
+  const res = el("div", "res"); card.append(res);
+  const sec = el("div", "wiz-sec");
+  const skip = el("button", "ghost sm", t("wiz_skip"));
+  skip.onclick = () => { wizSkip.add(it.kind + ":" + it.slug); renderWizard(); };
+  sec.append(skip);
+  const ids = allConns.filter((c) => c.provider === it.slug).map((c) => c.id);
+  if (it.kind === "webAdd") {
+    const never = el("button", "ghost sm", t("wiz_never"));
+    never.onclick = async () => { wizIgnore.push(it.slug); await chrome.storage.local.set({ wiz_ignore: wizIgnore }); renderWizard(); renderDash(); };
+    sec.append(never);
+  } else if (ids.length && it.kind !== "retired") {
+    const del = el("button", "ghost sm danger", t("wiz_delete"));
+    armConfirm(del, t("wiz_delete"), t("popup_deleteAllConfirm", [String(ids.length)]), async () => { for (const id of ids) await msg({ action: "deleteConn", id }); await loadConnections(); renderWizard(); });
+    sec.append(del);
+  }
+  card.append(sec); box.append(card);
+  const web = OMNI_WEB_MAP[it.slug], oa = OMNI_OAUTH_MAP[it.slug], key = OMNI_APIKEY_MAP[it.slug];
+  const sendToLogin = async () => {
+    await msg({ action: "autoAdd", key: it.slug });
+    chrome.tabs.create({ url: loginTarget(web), active: true });
+    setRes(res, "pend", t("wiz_waitLogin"));
+    wizSkip.add(it.kind + ":" + it.slug);
+  };
+  if (it.kind === "webFix") {
+    txt.textContent = t("wiz_txtWebFix", [web.host]);
+    go.textContent = "🔧 " + t("wiz_goFix");
+    go.onclick = async () => {
+      go.disabled = true; setRes(res, "pend", t("wiz_refreshing", [web.host]));
+      const r = await msg({ action: "refreshSessions", keys: [it.slug] });
+      const st = r && r.results && r.results[it.slug] && r.results[it.slug].state;
+      await loadStats(false); await loadConnections();
+      if (st === "ok") { setRes(res, "ok", "🟢 " + t("wiz_fixed")); setTimeout(renderWizard, 900); }
+      else { go.disabled = false; go.textContent = "🔑 " + t("wiz_goLogin"); txt.textContent = t("wiz_txtNeedLogin", [web.host]); go.onclick = sendToLogin; setRes(res, "bad", t("wiz_needLogin")); }
+    };
+  } else if (it.kind === "webAdd" || (it.kind === "import" && web)) {
+    txt.textContent = t("wiz_txtWebAdd", [web.host]);
+    go.textContent = "🔑 " + t("wiz_goLogin");
+    go.onclick = sendToLogin;
+  } else if (oa) {
+    txt.textContent = t("wiz_txtOauth");
+    go.textContent = "🔐 " + t("oauth_reconnect");
+    go.onclick = () => { goPane("oauth"); if (oa.kind === "redirect") connectOauth(oa.slug); else if (oa.deviceFlow && !oa.broken) startOauth(oa.slug); wizSkip.add(it.kind + ":" + it.slug); };
+  } else if (key) {
+    txt.textContent = t("wiz_txtKey");
+    go.textContent = "🔑 " + t("wiz_goKey");
+    go.onclick = () => { if (key.get) chrome.tabs.create({ url: key.get }); keyExpanded = key.slug; goPane("key"); renderKeyList(); wizSkip.add(it.kind + ":" + it.slug); };
+  } else { // retired
+    txt.textContent = t("wiz_txtRetired");
+    go.textContent = "🗑 " + t("wiz_goDelete", [String(ids.length)]);
+    go.classList.add("danger");
+    go.onclick = async () => { go.disabled = true; for (const id of ids) await msg({ action: "deleteConn", id }); await loadConnections(); renderWizard(); };
+  }
+  const rest = q.slice(1, 6);
+  if (rest.length) {
+    box.append(el("div", "grp-title", t("wiz_next")));
+    for (const n of rest) { const r = el("div", "wiz-next"); r.append(el("span", null, providerLabel(n.slug)), el("span", "pm", n.why)); box.append(r); }
+    if (q.length > 6) box.append(el("p", "hint-sm", t("wiz_more", [String(q.length - 6)])));
+  }
+  renderRail();
+}
+$("fillMissingBtn").addEventListener("click", () => { wizMode = "missing"; goPane("wizard"); });
+
+// ── rail badges ─────────────────────────────────────────────────────────────
+function renderRail() {
+  const rows = providerRows();
+  const bad = rows.filter((r) => r.status === "bad" || r.status === "retired").length;
+  const rb = $("railBad"); rb.textContent = bad ? String(bad) : ""; rb.classList.toggle("hide", !bad);
+  const saved = wizMode; wizMode = "fix"; const fixN = buildWizQueue().length; wizMode = saved;
+  const rw = $("railWiz"); rw.textContent = fixN ? String(fixN) : ""; rw.classList.toggle("hide", !fixN);
+  const bw = $("bWeb"); bw.classList.toggle("hide", bw.textContent === "0");
+}
+
+// ── refresh-all (re-capture web sessions through background tabs) ──────────
+async function runRefresh(keys, btn) {
+  const res = $("probeAllRes"), prog = $("probeProg"), bar = $("probeProgBar");
+  if (!serverOnline) { res.className = "res show bad"; res.textContent = "⚠ " + t("popup_omniDown"); return; }
+  if (btn) btn.disabled = true;
+  prog.classList.remove("hide"); bar.style.width = "0%"; probeStart = Date.now();
+  res.className = "res show pend"; res.textContent = t("refresh_start");
+  const r = await msg(keys ? { action: "refreshSessions", keys } : { action: "refreshSessions" });
+  if (btn) btn.disabled = false;
+  if (r && r.busy) { res.className = "res show mut"; res.textContent = t("refresh_busy"); prog.classList.add("hide"); return; }
+  const vals = Object.values((r && r.results) || {});
+  const ok = vals.filter((v) => v.state === "ok").length, need = vals.length - ok;
+  bar.style.width = "100%"; setTimeout(() => prog.classList.add("hide"), 900);
+  res.className = "res show " + (need ? "bad" : "ok");
+  res.textContent = vals.length ? t("refresh_done", [String(ok), String(need)]) : t("refresh_none");
+  const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
+  await loadStats(false); await loadConnections();
+}
+function onRefreshProgress(m) {
+  const bar = $("probeProgBar"), res = $("probeAllRes");
+  $("probeProg").classList.remove("hide");
+  bar.style.width = Math.round((m.done / m.total) * 100) + "%";
+  res.className = "res show pend";
+  res.textContent = t("refresh_progress", [String(m.done), String(m.total), providerLabel(m.key)]);
+}
+$("refreshAllBtn").addEventListener("click", () => runRefresh(null, $("refreshAllBtn")));
+$("fullBtn").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("popup.html?full=1") }));
+
+// Stats live in the SW's storage; site checks / cookie expiry are refreshed when stale.
+async function loadStats(heavy = true) {
+  const s = await msg({ action: "getStats" });
+  hist = (s && s.hist) || {}; sites = (s && s.sites) || {};
+  if (!heavy) return;
+  const webKeys = Object.keys(conns).filter((k) => OMNI_WEB_MAP[k]);
+  const stale = webKeys.filter((k) => !sites[k] || Date.now() - sites[k].at > 30 * 60 * 1000);
+  const [ex, sc, v] = await Promise.all([
+    webKeys.length ? msg({ action: "cookieExpiry", keys: webKeys }) : null,
+    stale.length ? msg({ action: "siteCheck", keys: stale }) : null,
+    serverOnline ? msg({ action: "omniVersion" }) : null,
+  ]);
+  expiry = (ex && ex.expiry) || expiry;
+  if (sc && sc.sites) Object.assign(sites, sc.sites);
+  if (v && v.ok !== false) omniVer = v;
+}
+function renderAll() { renderProblems(); renderDash(); if (curPane === "table") renderTable(); if (curPane === "wizard") renderWizard(); renderManage(); renderWeb(); keyPaneFill(); }
+
 let stored = {};
 $("openDash").addEventListener("click", () => chrome.tabs.create({ url: OMNI_BASE + "/home" }));
 $("probeAllBtn").addEventListener("click", runProbeAll);
 chrome.runtime.onMessage.addListener(async (m) => {
   if (!m) return;
   if (m.type === "probeProgress") onProbeProgress(m);
-  else if (m.type === "healthSwept") { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; renderProblems(); renderWeb(); keyPaneFill(); } // live-refresh verdicts after an unattended sweep
+  else if (m.type === "refreshProgress") onRefreshProgress(m);
+  else if (m.type === "healthSwept") { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; await loadStats(false); renderAll(); } // live-refresh verdicts after an unattended sweep
 });
 
 // ── settings panel ───────────────────────────────────────────────────────────
@@ -789,6 +1189,8 @@ async function loadSettings() {
   $("setSweepMin").value = String(s.sweepMin || 15);
   $("setNotify").checked = !!s.notify;
   $("setPersist").checked = s.persistSessions !== false; // default on
+  $("setAutoRepair").checked = s.autoRepair !== false;
+  $("setNightly").checked = s.nightly !== false;
   renderSweepSkip(s.sweepSkip || []);
   $("setTheme").value = s.theme || "auto"; applyTheme(s.theme);
   try { $("setVer").textContent = "v" + chrome.runtime.getManifest().version; } catch (e) {}
@@ -827,7 +1229,7 @@ function renderSweepSkip(skip) {
 }
 function saveSettings() {
   applyTheme($("setTheme").value);
-  msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked } });
+  msg({ action: "setSettings", settings: { sweep: $("setSweep").checked, sweepMin: parseInt($("setSweepMin").value, 10) || 15, notify: $("setNotify").checked, theme: $("setTheme").value, persistSessions: $("setPersist").checked, autoRepair: $("setAutoRepair").checked, nightly: $("setNightly").checked } });
 }
 function initSettings() {
   // Firefox: request the 127.0.0.1 host permission on click (a user gesture, as permissions.request needs),
@@ -848,8 +1250,8 @@ function initSettings() {
       if (serverOnline) { await fetchConnections(); renderProblems(); renderManage(); renderWeb(); keyPaneFill(); }
     }
   });
-  $("settingsBtn").addEventListener("click", () => { const p = $("settingsPanel"); p.classList.toggle("hide"); if (!p.classList.contains("hide")) { loadSettings(); $("setSweep").focus(); } });
-  for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme"]) $(id).addEventListener("change", saveSettings);
+  $("settingsBtn").addEventListener("click", () => { loadSettings(); });
+  for (const id of ["setSweep", "setSweepMin", "setNotify", "setPersist", "setTheme", "setAutoRepair", "setNightly"]) $(id).addEventListener("change", saveSettings);
   $("sweepNowBtn").addEventListener("click", async () => {
     const b = $("sweepNowBtn"); b.disabled = true; b.textContent = t("set_sweeping");
     const r = await msg({ action: "sweepNow" });
@@ -859,7 +1261,20 @@ function initSettings() {
     b.disabled = false; b.textContent = t("set_sweepNow");
   });
   $("clearProbesBtn").addEventListener("click", async () => { await msg({ action: "clearProbes" }); probes = {}; await loadConnections(); loadSettings(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settingsPanel").classList.contains("hide")) { $("settingsPanel").classList.add("hide"); $("settingsBtn").focus(); } }); // Esc closes settings, focus back to gear
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && curPane === "set") { goPane("dash"); $("settingsBtn").focus(); } }); // Esc leaves settings
+  // Import a roster exported from another PC: providers it has and this OmniRoute lacks go into the Wizard.
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", async () => {
+    const f = $("importFile").files && $("importFile").files[0]; if (!f) return;
+    let slugs = [];
+    try { const d = JSON.parse(await f.text()); slugs = [...new Set((d.connections || []).map((c) => c && c.provider).filter((s) => typeof s === "string"))]; } catch (e) { slugs = []; }
+    const missing = slugs.filter((s) => !(conns[s] && conns[s].total) && (OMNI_WEB_MAP[s] || OMNI_OAUTH_MAP[s] || OMNI_APIKEY_MAP[s]));
+    await chrome.storage.local.set({ wiz_import: missing });
+    wizImport = missing;
+    $("setSummary").textContent = slugs.length ? t("set_importDone", [String(missing.length), String(slugs.length)]) : t("set_importBad");
+    $("importFile").value = "";
+    renderRail();
+  });
   // Backup: download the connection roster as JSON. Names only (which carry a hashed accountId) —
   // no cookies/tokens/keys ever leave (those never reach the popup in the first place).
   $("exportBtn").addEventListener("click", () => {
@@ -875,7 +1290,9 @@ initSettings();
 
 // Detach into a standalone window so the popup stays open while you switch tabs.
 const windowed = new URLSearchParams(location.search).get("window") === "1";
-if (windowed) {
+const full = new URLSearchParams(location.search).get("full") === "1"; // the wide full-tab view (идея 20)
+if (full) { document.documentElement.classList.add("full"); document.body.classList.add("full"); $("detachBtn").classList.add("hide"); $("fullBtn").classList.add("hide"); }
+else if (windowed) {
   $("detachBtn").classList.add("hide");
   document.documentElement.style.height = "100vh";
   Object.assign(document.body.style, { height: "100vh", width: "100%", maxWidth: "none" }); // fill + follow resize
@@ -888,7 +1305,8 @@ if (windowed) {
 (async () => {
   chrome.storage.local.set({ last_active: Date.now() }); // gate the unattended health sweep to recent use
   msg({ action: "getSettings" }).then((r) => applyTheme(r && r.settings && r.settings.theme)); // apply saved theme ASAP
-  stored = await chrome.storage.local.get(["sel_apikey", "sel_tab"]);
+  stored = await chrome.storage.local.get(["sel_apikey", "sel_tab", "wiz_ignore", "wiz_import"]);
+  wizIgnore = stored.wiz_ignore || []; wizImport = stored.wiz_import || [];
   const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
   await detectActiveTab();
   initKeyPane();
@@ -897,11 +1315,14 @@ if (windowed) {
   await probeServer();
   if (serverOnline) { await fetchConnections(); $("probeAllBtn").disabled = !connTotal; }
   renderOauth();          // now conn counts are available for the device cards
-  setFooter(); renderProblems(); renderManage(); renderWeb(); keyPaneFill();
-  // Restore last tab UNLESS we're on a provider site with a capture ready (then the web/capture flow wins).
-  if (stored.sel_tab && stored.sel_tab !== "web" && !(activeProviderKey && caps[activeProviderKey])) {
-    const tb = document.querySelector('.tab[data-pane="' + stored.sel_tab + '"]'); if (tb) selectTab(tb);
-  }
+  await loadStats(false);
+  setFooter(); renderAll();
+  // On a provider site with a capture ready the capture flow wins; the full tab opens on the table;
+  // otherwise Pulse is home.
+  if (activeProviderKey && caps[activeProviderKey]) goPane("web");
+  else if (full) goPane("table");
+  else goPane("dash");
+  if (serverOnline) loadStats(true).then(renderAll); // site checks / cookie expiry / version — slower, paint after
   refreshOauth();         // pick up any device-flow left pending from a previous popup session
 })();
 // Push-based capture refresh: react the instant the SW writes a new session, instead of a tight 3s

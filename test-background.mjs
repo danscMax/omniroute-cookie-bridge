@@ -244,4 +244,14 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.equal(results["claude-web"].alive, true, "and still returns the real verdict");
 }
 
+// ── unattended pushes require the provider's real session cookie (a logged-out site sends junk) ──
+{
+  const { sandbox } = boot();
+  const claude = sandbox.OMNI_WEB_MAP["claude-web"];
+  assert.equal(sandbox.hasSession(claude, { cookie: "_ga=1; cf_clearance=x" }), false, "analytics-only cookies are NOT a session");
+  assert.equal(sandbox.hasSession(claude, { cookie: "_ga=1; sessionKey=sk-abc" }), true, "the named session cookie is");
+  assert.equal(sandbox.hasSession(claude, { cookie: "sessionKey=" }), false, "an emptied session cookie is not");
+  assert.equal(sandbox.hasSession(claude, null), false, "no capture → no session");
+}
+
 console.log("background OK — capture→disk mirror, toggle purge, clear, TTL burial, restartRecovery (rehydrate/no-resurrect/offline-safe), probeAll verdicts + per-slug persistence, 429≠dead, sweepSkip honoured, no direct-fetch hang (Firefox)");

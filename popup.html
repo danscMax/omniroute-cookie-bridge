@@ -5,21 +5,27 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <header class="hdr">
+<div class="app">
+  <nav class="rail" role="tablist" aria-orientation="vertical">
     <img class="logo" src="icons/icon48.png" alt="" />
+    <button class="tab on" id="tab-dash" data-pane="dash" role="tab" aria-selected="true" aria-controls="pane-dash" data-i18n-title="nav_dash" data-i18n-label="nav_dash" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span class="rbadge bad hide" id="railBad"></span></button>
+    <button class="tab" id="tab-wizard" data-pane="wizard" role="tab" aria-selected="false" aria-controls="pane-wizard" data-i18n-title="nav_wizard" data-i18n-label="nav_wizard" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg><span class="rbadge hide" id="railWiz"></span></button>
+    <button class="tab" id="tab-web" data-pane="web" role="tab" aria-selected="false" aria-controls="pane-web" data-i18n-title="nav_web" data-i18n-label="nav_web" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/></svg><span class="rbadge acc" id="bWeb">0</span></button>
+    <button class="tab" id="tab-key" data-pane="key" role="tab" aria-selected="false" aria-controls="pane-key" data-i18n-title="nav_key" data-i18n-label="nav_key" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3"/><path d="m16 7 3 3"/><path d="m18 5 2 2"/></svg><span class="rbadge hide" id="bKey">0</span></button>
+    <button class="tab" id="tab-oauth" data-pane="oauth" role="tab" aria-selected="false" aria-controls="pane-oauth" data-i18n-title="nav_oauth" data-i18n-label="nav_oauth" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="rbadge hide" id="bOauth">0</span></button>
+    <button class="tab" id="tab-table" data-pane="table" role="tab" aria-selected="false" aria-controls="pane-table" data-i18n-title="nav_table" data-i18n-label="nav_table" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M9 10v10"/></svg></button>
+    <span class="rail-sp"></span>
+    <button class="rail-btn" id="fullBtn" data-i18n-title="nav_full" data-i18n-label="nav_full" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <button class="tab" id="settingsBtn" data-pane="set" role="tab" aria-selected="false" aria-controls="pane-set" data-i18n-title="popup_settings" data-i18n-label="popup_settings" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </nav>
+  <div class="main">
+  <header class="hdr">
     <div class="hdr-t">
-      <h1>OmniRoute Bridge</h1>
+      <h1 id="viewTitle" data-i18n="nav_dash">Пульт</h1>
       <div class="srv"><span id="srvDot" class="dot"></span><span id="srvTxt" data-i18n="popup_checking">проверяю…</span></div>
     </div>
-    <button class="icon-btn" id="settingsBtn" data-i18n-title="popup_settings" data-i18n-label="popup_settings" title="Настройки" aria-label="Настройки">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
-    <button class="icon-btn" id="openDash" data-i18n-title="popup_openDash" data-i18n-label="popup_openDash" title="Открыть дашборд OmniRoute" aria-label="Открыть дашборд OmniRoute">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
-    </button>
-    <button class="icon-btn" id="detachBtn" data-i18n-title="popup_detach" data-i18n-label="popup_detach" title="Открепить в отдельное окно" aria-label="Открепить в отдельное окно">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
-    </button>
+    <button class="icon-btn" id="openDash" data-i18n-title="popup_openDash" data-i18n-label="popup_openDash" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></button>
+    <button class="icon-btn" id="detachBtn" data-i18n-title="popup_detach" data-i18n-label="popup_detach" title="" aria-label=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
   </header>
   <!-- Firefox MV3 grants host_permissions on an ad-hoc basis (and NOT on an update that changed them),
        so the extension can lack access to 127.0.0.1 even though the manifest lists it. Chrome auto-grants,
@@ -36,41 +42,30 @@
     <input class="search" id="globalSearch" type="search" data-i18n-placeholder="global_searchPh" data-i18n-label="global_searchLabel" placeholder="Поиск по всем провайдерам…" aria-label="Поиск по всем провайдерам" />
   </div>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab on" id="tab-web" data-pane="web" role="tab" aria-selected="true" aria-controls="pane-web"><span data-i18n="popup_tabWeb">🍪 Веб</span> <span class="badge" id="bWeb">0</span></button>
-    <button class="tab" id="tab-key" data-pane="key" role="tab" aria-selected="false" aria-controls="pane-key"><span data-i18n="popup_tabKey">🔑 API-ключ</span> <span class="badge" id="bKey">0</span></button>
-    <button class="tab" id="tab-oauth" data-pane="oauth" role="tab" aria-selected="false" aria-controls="pane-oauth"><span data-i18n="popup_tabOauth">🔐 OAuth</span> <span class="badge" id="bOauth">0</span></button>
-  </nav>
-
   <main class="scroll" id="scroll">
-    <div id="settingsPanel" class="card hide">
-      <div class="card-h"><b data-i18n="popup_settings">Настройки</b><span class="tag" id="setVer"></span></div>
-      <label class="setrow"><span data-i18n="set_sweep">Фоновая проверка здоровья</span><input type="checkbox" id="setSweep" /></label>
-      <label class="setrow"><span data-i18n="set_sweepInterval">Интервал проверки</span><select id="setSweepMin"><option value="5" data-i18n="set_min5">5 мин</option><option value="15" data-i18n="set_min15">15 мин</option><option value="30" data-i18n="set_min30">30 мин</option><option value="60" data-i18n="set_min60">60 мин</option></select></label>
-      <label class="setrow"><span data-i18n="set_notify">Уведомления о поломках</span><input type="checkbox" id="setNotify" /></label>
-      <div class="setrow" style="align-items: flex-start"><span data-i18n="set_sweepSkip">Не проверять в фоне</span><div class="chips" id="sweepSkipChips"></div></div>
-      <div class="hint-sm" data-i18n="set_sweepSkipHint">Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно.</div>
-      <label class="setrow"><span data-i18n="set_persist">Хранить сессии на диске (оживлять на старте)</span><input type="checkbox" id="setPersist" /></label>
-      <div class="hint-sm" data-i18n="set_persistHint">Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти.</div>
-      <label class="setrow"><span data-i18n="set_theme">Тема</span><select id="setTheme"><option value="auto" data-i18n="set_themeAuto">Системная</option><option value="light" data-i18n="set_themeLight">Светлая</option><option value="dark" data-i18n="set_themeDark">Тёмная</option></select></label>
-      <div class="actions"><button class="ghost sm grow" id="sweepNowBtn" data-i18n="set_sweepNow">🩺 Проверить все соединения сейчас</button></div>
-      <div class="actions"><button class="ghost sm grow" id="exportBtn" data-i18n="set_export">⬇ Скачать список соединений (бэкап)</button></div>
-      <div class="actions"><button class="ghost sm grow" id="clearProbesBtn" data-i18n="set_clearProbes">🧹 Сбросить статусы проверок</button></div>
-      <div class="hint-sm" id="setSummary"></div>
-      <div class="hint-sm" id="lastSweep"></div>
-      <div class="hint-sm" id="lastRecovery"></div>
-      <div class="hint-sm"><span data-i18n="set_shortcut">Открыть попап:</span> <b>Alt+Shift+O</b></div>
-    </div>
-    <!-- GLOBAL band: connection health + "needs attention" apply across ALL tabs (web/apikey/oauth),
-         so they live above the panes, not inside the Web pane. -->
-    <div id="globalBand">
-      <div class="healthrow"><button class="ghost sm" id="probeAllBtn" data-i18n="popup_probeAll" disabled>🩺 Проверить все</button><span class="res mut" id="probeAllRes"></span></div>
+    <!-- PULSE: health summary + the three bulk actions + everything that needs a decision -->
+    <section id="pane-dash" class="pane" role="tabpanel" aria-labelledby="tab-dash">
+      <div class="hero">
+        <div class="hero-top"><span class="big" id="dashOk">—</span><span class="hero-lbl" data-i18n="dash_working">работают</span><span class="grow"></span><span class="hero-bad" id="dashBad"></span></div>
+        <div class="meter"><i id="dashMeter"></i></div>
+        <div class="hero-sub" id="dashSub"></div>
+      </div>
+      <div class="actgrid">
+        <button class="act-main" id="refreshAllBtn" data-i18n="dash_refreshAll">🔄 Обновить все сессии</button>
+        <button class="ghost" id="fillMissingBtn" data-i18n="dash_fillMissing">➕ Добить недостающих</button>
+        <button class="ghost" id="probeAllBtn" data-i18n="popup_probeAll" disabled>🩺 Проверить все</button>
+      </div>
+      <div class="opline"><span class="res mut" id="probeAllRes"></span></div>
       <div class="progress hide" id="probeProg"><div id="probeProgBar"></div></div>
+      <div class="chips filters" id="dashFilters" role="group"></div>
       <div id="webProblems"></div>
-      <div id="manageSection"></div>
-    </div>
+      <div id="dashCleanup"></div>
+      <div id="dashList"></div>
+    </section>
+    <!-- WIZARD: one broken thing, one button -->
+    <section id="pane-wizard" class="pane hide" role="tabpanel" aria-labelledby="tab-wizard"><div id="wizBox"></div></section>
     <!-- WEB -->
-    <section id="pane-web" class="pane" role="tabpanel" aria-labelledby="tab-web">
+    <section id="pane-web" class="pane hide" role="tabpanel" aria-labelledby="tab-web">
       <input class="search" id="webSearch" type="search" data-i18n-placeholder="web_searchPh" data-i18n-label="web_searchLabel" placeholder="Поиск веб-провайдера…" aria-label="Поиск веб-провайдера" />
       <div id="webCaptured"></div>
       <div class="grp-title"><span data-i18n="web_allTitle">Все веб-провайдеры</span> <span class="n" id="webAllN">0</span></div>
@@ -97,12 +92,47 @@
       <p class="hint-sm" data-i18n="oauth_hint">Всё подключается прямо здесь: device-код, вход в браузере или вставка токена — по типу провайдера.</p>
       <div id="oauthList"></div>
     </section>
+    <!-- TABLE: every gateway in columns (wide in the full-tab view) -->
+    <section id="pane-table" class="pane hide" role="tabpanel" aria-labelledby="tab-table">
+      <div class="chips filters" id="tableFilters" role="group"></div>
+      <div class="tbar"><span class="tsel" id="tableSelN"></span><span class="grow"></span><button class="ghost sm" id="tableRefreshSel" data-i18n="table_refreshSel" disabled>🔄 Обновить</button><button class="ghost sm danger" id="tableDelSel" data-i18n="table_delSel" disabled>🗑 Сломанные</button></div>
+      <div class="twrap"><table class="stat" id="statTable"><thead><tr>
+        <th class="c-sel"><input type="checkbox" id="tableSelAll" data-i18n-label="table_selAll" aria-label="" /></th>
+        <th data-i18n="table_colProv">Провайдер</th><th class="c-wide" data-i18n="table_colType">Тип</th><th data-i18n="table_colAcc">Акк.</th><th data-i18n="table_colSite">Сайт</th><th data-i18n="table_colCookie">Куки</th><th data-i18n="table_colSpeed">Скор.</th><th data-i18n="table_col7d">7 дней</th><th class="c-wide" data-i18n="table_colErr">Ошибка</th>
+      </tr></thead><tbody id="statBody"></tbody></table></div>
+      <div id="manageSection"></div>
+    </section>
+    <section id="pane-set" class="pane hide" role="tabpanel" aria-labelledby="settingsBtn">
+    <div id="settingsPanel" class="card">
+      <div class="card-h"><b data-i18n="popup_settings">Настройки</b><span class="tag" id="setVer"></span></div>
+      <label class="setrow"><span data-i18n="set_sweep">Фоновая проверка здоровья</span><input type="checkbox" id="setSweep" /></label>
+      <label class="setrow"><span data-i18n="set_sweepInterval">Интервал проверки</span><select id="setSweepMin"><option value="5" data-i18n="set_min5">5 мин</option><option value="15" data-i18n="set_min15">15 мин</option><option value="30" data-i18n="set_min30">30 мин</option><option value="60" data-i18n="set_min60">60 мин</option></select></label>
+      <label class="setrow"><span data-i18n="set_notify">Уведомления о поломках</span><input type="checkbox" id="setNotify" /></label>
+      <div class="setrow stack"><span data-i18n="set_sweepSkip">Не проверять в фоне</span><div class="chips" id="sweepSkipChips"></div></div>
+      <div class="hint-sm" data-i18n="set_sweepSkipHint">Каждый фоновый цикл тратит на провайдера один настоящий запрос — это деньги на платных тарифах и лимиты (kiro отвечает 429). Отмеченные пропускаются; кнопка «Проверить все» проверит их всё равно.</div>
+      <label class="setrow"><span data-i18n="set_persist">Хранить сессии на диске (оживлять на старте)</span><input type="checkbox" id="setPersist" /></label>
+      <div class="hint-sm" data-i18n="set_persistHint">Захваченные веб-сессии переживают перезапуск браузера и авто-восстанавливаются на старте. Куки/токены при этом лягут на диск профиля браузера — выключи, если хочешь держать их только в памяти.</div>
+      <label class="setrow"><span data-i18n="set_autoRepair">Авто-ремонт сломанных веб-сессий</span><input type="checkbox" id="setAutoRepair" /></label>
+      <div class="hint-sm" data-i18n="set_autoRepairHint">Фоновая проверка нашла мёртвую веб-сессию → расширение само открывает сайт в фоновой вкладке, забирает свежие куки и проверяет снова. Не чаще раза в 6 часов на провайдера.</div>
+      <label class="setrow"><span data-i18n="set_nightly">Ночное обновление сессий (04:00)</span><input type="checkbox" id="setNightly" /></label>
+      <label class="setrow"><span data-i18n="set_theme">Тема</span><select id="setTheme"><option value="auto" data-i18n="set_themeAuto">Системная</option><option value="light" data-i18n="set_themeLight">Светлая</option><option value="dark" data-i18n="set_themeDark">Тёмная</option></select></label>
+      <div class="actions"><button class="ghost sm grow" id="sweepNowBtn" data-i18n="set_sweepNow">🩺 Проверить все соединения сейчас</button></div>
+      <div class="actions"><button class="ghost sm grow" id="exportBtn" data-i18n="set_export">⬇ Скачать список соединений (бэкап)</button></div>
+      <div class="actions"><button class="ghost sm grow" id="importBtn" data-i18n="set_import">⬆ Загрузить список → в Мастер</button><input type="file" id="importFile" class="hide" accept=".json,application/json" /></div>
+      <div class="actions"><button class="ghost sm grow" id="clearProbesBtn" data-i18n="set_clearProbes">🧹 Сбросить статусы проверок</button></div>
+      <div class="hint-sm" id="setSummary"></div>
+      <div class="hint-sm" id="lastSweep"></div>
+      <div class="hint-sm" id="lastRecovery"></div>
+      <div class="hint-sm"><span data-i18n="set_shortcut">Открыть попап:</span> <b>Alt+Shift+O</b></div>
+    </div>
+    </section>
   </main>
 
   <footer class="ftr">
     <span class="hint" id="ftrHint" data-i18n="popup_footerDefault">Дашборд OmniRoute должен быть открыт и залогинен.</span>
   </footer>
-
+  </div>
+</div>
   <script src="providers.gen.js"></script>
   <script src="providers.js"></script>
   <script src="popup.js"></script>

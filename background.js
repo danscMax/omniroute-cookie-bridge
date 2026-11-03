@@ -40,7 +40,7 @@ const t = (k, subs) => chrome.i18n.getMessage(k, subs) || k;
 // completion per provider every cycle, which costs money on paid tiers and trips rate-limits on some
 // (kiro 429) — and for a web-session provider a robotic request every 15 min is also ban-surface.
 // Opting one out keeps it usable via the popup's manual "Проверить все" without paying for it hourly.
-const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: [] };
+const SETTINGS_DEFAULT = { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: true, sweepSkip: [], autoRepair: true, nightly: true };
 
 // How long a mirrored capture may sit on disk. Session cookies live "hours to days", so one that hasn't
 // been refreshed in a week is a corpse: re-pushing it can't authenticate anything, and keeping it is a
@@ -72,21 +72,169 @@ chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
   const auth = h["authorization"] || "";
   const token = /^bearer\s+\S/i.test(auth) ? auth.replace(/^bearer\s+/i, "").trim() : "";
   const capKey = "cap_" + provider.key;
+  capSeen[provider.key] = Date.now(); // a refresh run waits on this, even when the cookie didn't change
   // Dedup: a busy page fires many XHR/s carrying the SAME cookie — only write (and repaint the badge)
   // when the credential actually changed, else we storm session storage + a full scan on every request.
   SEC.get(capKey).then((cur) => {
     const prev = cur[capKey];
-    if (prev && prev.cookie === cookie && prev.token === token) return;
+    if (prev && prev.cookie === cookie && prev.token === token) { maybeAutoAdd(provider.key); return; }
     const cap = {
       provider: provider.key, slug: provider.slug, label: provider.label,
       cookie, token, cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now(),
     };
     cap.accountId = omniAccountId(omniBuildCredential(provider, cap)); // compute once at capture, not per refresh
-    SEC.set({ [capKey]: cap }, updateBadge);
+    cap.email = omniAccountEmail(omniBuildCredential(provider, cap));
+    SEC.set({ [capKey]: cap }, () => { updateBadge(); maybeAutoAdd(provider.key); });
     // Opt-in: mirror to disk so the capture survives a browser restart (restartRecovery re-pushes it).
     getSettings().then((st) => { if (st.persistSessions) LOC.set({ [capKey]: cap }); });
   });
 }, { urls: CAPTURE_URLS, types: ["xmlhttprequest"] }, captureOpts);
+
+// When the user was sent to log in (wizard / "добить недостающих"), the popup is already closed by the
+// time the site sends its first authenticated XHR — so the SW finishes the job itself: push the fresh
+// capture, probe it, and say so with a toast. One-shot per provider, expires after 15 min.
+const AUTOADD_TTL_MS = 15 * 60 * 1000;
+const autoAdding = new Set();
+async function maybeAutoAdd(key) {
+  if (autoAdding.has(key)) return;
+  const k = "autoadd_" + key;
+  const { [k]: since } = await LOC.get(k);
+  if (!since) return;
+  if (Date.now() - since > AUTOADD_TTL_MS) { LOC.remove(k); return; }
+  autoAdding.add(key);
+  try {
+    await LOC.remove(k);
+    const { ["cap_" + key]: cap } = await SEC.get("cap_" + key);
+    if (!hasSession(OMNI_WEB_MAP[key], cap)) { await LOC.set({ [k]: since }); return; } // not logged in yet — keep waiting
+    const r = await sendToOmni(key);
+    const p = r && r.ok ? await realProbe(OMNI_WEB_MAP[key].slug) : null;
+    const label = (OMNI_WEB_MAP[key] || {}).label || key;
+    toast(r && r.ok && p && p.alive !== false ? t("bg_autoAddOk", [label]) : t("bg_autoAddFail", [label, String((p && p.detail) || (r && r.error) || "")]));
+    if (r && r.ok) readConnections().catch(() => {});
+  } finally { autoAdding.delete(key); }
+}
+function toast(message) {
+  try { chrome.notifications.create("omni_" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png", title: "OmniRoute Bridge", message }); } catch (e) { /* no notifications permission */ }
+}
+// Does a capture carry the provider's real SESSION credential? A logged-out site still sends analytics
+// cookies; pushing those unattended would mint a dead connection (new accountId → new name). Providers
+// whose catalog lists no named cookie (header/localStorage-only) need the Bearer token instead.
+function hasSession(p, cap) {
+  if (!cap) return false;
+  const names = p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name);
+  if (!names.length) return !!cap.token;
+  const have = new Set(String(cap.cookie || "").split(";").map((x) => x.trim()).filter((x) => /=./.test(x)).map((x) => x.slice(0, x.indexOf("="))));
+  return names.some((n) => have.has(n));
+}
+const capSeen = {}; // provider key → last time ANY request carried its session (dedup-proof liveness)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── refresh sessions (идеи 1, 3, 4): open each site in a background tab, let it send its own
+// authenticated XHR (the capture listener above grabs the cookie), push to OmniRoute, probe for real.
+// A cookie the browser still sends can belong to a dead session, so the verdict is the probe, not the
+// capture. Sequential on purpose: parallel chat probes have wedged the local server before.
+const REFRESH_WAIT_MS = 15000;
+let refreshing = null;
+async function refreshSessions(keys, emit = true) {
+  if (refreshing) return { busy: true };
+  refreshing = (async () => {
+    const out = {};
+    for (let i = 0; i < keys.length; i++) {
+      const p = OMNI_WEB_MAP[keys[i]];
+      if (!p) continue;
+      const start = Date.now();
+      let tab = null;
+      try { tab = await chrome.tabs.create({ url: p.site, active: false }); } catch (e) { out[p.key] = { state: "error", detail: String(e).slice(0, 80) }; continue; }
+      while (Date.now() - start < REFRESH_WAIT_MS && !(capSeen[p.key] > start)) await sleep(500);
+      try { await chrome.tabs.remove(tab.id); } catch (e) { /* user closed it */ }
+      if (!(capSeen[p.key] > start)) out[p.key] = { state: "noSession" };
+      else {
+        await sleep(300); // let the capture write land in session storage
+        const { ["cap_" + p.key]: cap } = await SEC.get("cap_" + p.key);
+        if (!hasSession(p, cap)) { out[p.key] = { state: "needLogin", detail: t("bg_noSessionCookie") }; LOC.set({ ["repair_" + p.key]: Date.now() }); continue; }
+        const r = await sendToOmni(p.key);
+        if (!r || !r.ok) out[p.key] = { state: "error", detail: (r && r.error) || "" };
+        else {
+          const pr = await realProbe(p.slug);
+          out[p.key] = { state: pr.alive === true ? "ok" : pr.alive === false ? "needLogin" : "unknown", detail: pr.detail || "" };
+        }
+      }
+      LOC.set({ ["repair_" + p.key]: Date.now() });
+      if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", done: i + 1, total: keys.length, key: p.key, state: out[p.key].state }); } catch (e) { /* popup closed */ }
+    }
+    await LOC.set({ last_refresh: { at: Date.now(), results: out } });
+    return { results: out };
+  })().finally(() => { refreshing = null; });
+  return refreshing;
+}
+// Web providers that already live in OmniRoute (the ones worth refreshing unattended).
+async function knownWebKeys() {
+  const { conn_slugs } = await LOC.get("conn_slugs");
+  return OMNI_WEB.filter((p) => (conn_slugs || []).includes(p.slug)).map((p) => p.key);
+}
+
+// ── site reachability (идея 6): is the SITE up, separately from "is my session alive" ──
+async function siteCheck(keys) {
+  const out = {};
+  await Promise.all(keys.map(async (k) => {
+    const p = OMNI_WEB_MAP[k]; if (!p) return;
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 15000); const t0 = Date.now();
+    // HEAD + manual redirect, NOT mode:"no-cors": Chrome's extension SW rejects no-cors fetches outright
+    // ("Failed to fetch" in 50ms — verified 2026-11-03), while host permission already exempts us from CORS.
+    // Any HTTP answer below 500 (incl. a Cloudflare 403) means the site is up.
+    try { const r = await fetch(p.site, { method: "HEAD", redirect: "manual", cache: "no-store", credentials: "omit", signal: ctrl.signal }); out[k] = { up: r.status < 500, ms: Date.now() - t0, at: Date.now(), status: r.status }; }
+    // A timeout is "don't know" (slow DNS/network on this PC), not "site down" — only a hard error is down.
+    catch (e) { out[k] = e && e.name === "AbortError" ? { up: null, at: Date.now(), detail: "timeout" } : { up: false, at: Date.now(), detail: String(e).slice(0, 60) }; }
+    finally { clearTimeout(to); }
+  }));
+  await LOC.set(Object.fromEntries(Object.entries(out).map(([k, v]) => ["site_" + k, v])));
+  return { sites: out };
+}
+
+// ── cookie lifetime (идея 5): earliest expiry among the provider's session cookies ──
+async function cookieExpiry(keys) {
+  const out = {};
+  if (!chrome.cookies) return { expiry: out };
+  for (const k of keys) {
+    const p = OMNI_WEB_MAP[k]; if (!p) continue;
+    let min = null;
+    for (const s of p.sources) {
+      if (s.type !== "cookie" || !s.name) continue;
+      try {
+        const list = await chrome.cookies.getAll({ name: s.name, domain: String(s.domain || p.host).replace(/^\./, "") });
+        for (const c of list) if (c.expirationDate && (min === null || c.expirationDate < min)) min = c.expirationDate;
+      } catch (e) { /* no host permission for that domain */ }
+    }
+    if (min !== null) out[k] = Math.round(min * 1000);
+  }
+  return { expiry: out };
+}
+
+// ── probe history (идея 8): last 7 days of verdicts per provider ──
+const HIST_MS = 7 * 24 * 60 * 60 * 1000;
+async function appendHist(slug, r) {
+  const k = "hist_" + slug;
+  const { [k]: h } = await LOC.get(k);
+  const now = Date.now();
+  const next = (h || []).filter((x) => now - x.at < HIST_MS).concat([{ at: now, a: r.alive, ms: r.ms || null }]).slice(-120);
+  await LOC.set({ [k]: next });
+}
+
+// ── OmniRoute version (идея 10) ──
+function versionInPage() {
+  return fetch("/api/system/version", { credentials: "include" })
+    .then((r) => (r.ok ? r.json().then((d) => ({ ok: true, current: d.current, latest: d.latest, updateAvailable: !!d.updateAvailable })) : { ok: false, error: "HTTP " + r.status }))
+    .catch((e) => ({ ok: false, error: String(e).slice(0, 80) }));
+}
+async function omniVersion() {
+  const { omni_version: v } = await LOC.get("omni_version");
+  if (v && Date.now() - v.at < 60 * 60 * 1000) return v;
+  const r = await runInDash(versionInPage);
+  if (!r || r.ok !== true) return v || { ok: false };
+  const next = { ...r, at: Date.now() };
+  await LOC.set({ omni_version: next });
+  return next;
+}
 
 // Toolbar badge: RED with the count of dead connections when the last health sweep found any
 // (that's the state worth shouting about); else BLUE with the count of captured-but-unsent sessions.
@@ -110,7 +258,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
           const c = all["cap_" + p.key];
           // slim (no raw cookie/token leaves the SW) + the account id used to build the connection name,
           // so the popup can predict "update vs new" without seeing the credential.
-          caps[p.key] = c ? { provider: c.provider, slug: c.slug, label: c.label, cookieCount: c.cookieCount, at: c.at, accountId: c.accountId || omniAccountId(omniBuildCredential(p, c)) } : null;
+          caps[p.key] = c ? { provider: c.provider, slug: c.slug, label: c.label, cookieCount: c.cookieCount, at: c.at, email: c.email || "", accountId: c.accountId || omniAccountId(omniBuildCredential(p, c)) } : null;
         }
         send({ caps });
       });
@@ -149,6 +297,18 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "sweepNow": healthSweep(true).then((r) => send({ ok: r !== false, ran: r !== false })); return true;
     case "clearProbes": clearProbes().then(() => send({ ok: true })); return true;
     case "clearProbe": LOC.remove("probe_" + req.slug).then(() => send({ ok: true })); return true;
+    case "refreshSessions": (req.keys ? Promise.resolve(req.keys) : knownWebKeys()).then((k) => refreshSessions(k)).then(send); return true;
+    case "siteCheck": siteCheck(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
+    case "cookieExpiry": cookieExpiry(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
+    case "omniVersion": omniVersion().then(send); return true;
+    case "autoAdd": LOC.set({ ["autoadd_" + req.key]: Date.now() }).then(() => send({ ok: true })); return true;
+    case "getStats":
+      LOC.get(null).then((all) => {
+        const hist = {}, sites = {};
+        for (const k in all) { if (k.startsWith("hist_")) hist[k.slice(5)] = all[k]; else if (k.startsWith("site_")) sites[k.slice(5)] = all[k]; }
+        send({ hist, sites, lastRefresh: all.last_refresh || null, refreshing: !!refreshing });
+      });
+      return true;
     default: return false;
   }
 });
@@ -436,20 +596,22 @@ async function probeModel(models, slug) {
   const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
   if (!m) return { alive: null, detail: t("bg_noModelsForProbe") };
   for (let attempt = 0; attempt < 2; attempt++) {
+    const t0 = Date.now();
     const r = await chatProbe(m.id); // direct in Chrome, dashboard-tab fallback in Firefox
+    const ms = Date.now() - t0;
     // runInDash-level failure (inject error / timeout) → retry once, then UNKNOWN (not "dead").
     if (!r || !r.fetched) {
       if (attempt === 0) continue;
       return { alive: null, model: m.id, detail: t("bg_probeTimeout", [String((r && r.error) || t("bg_noAnswer")).slice(0, 100)]) };
     }
     if (r.netErr) { if (attempt === 0) continue; return { alive: null, model: m.id, detail: String(r.msg).slice(0, 120) }; }
-    if (r.ok) return { alive: true, model: m.id, detail: t("bg_answered200") };
+    if (r.ok) return { alive: true, model: m.id, ms, detail: t("bg_answered200") };
     if (r.status >= 500 && attempt === 0) continue; // transient upstream → retry once
     // 429 = rate-limited, NOT dead — the account is almost certainly authenticated, just throttled.
     // A persistent 5xx is a provider-side blip, not a verified auth failure → don't flag either as dead.
     if (r.status === 429) return { alive: null, model: m.id, status: 429, detail: t("bg_rateLimited") };
     if (r.status >= 500) return { alive: null, model: m.id, status: r.status, detail: t("bg_provider5xx", [String(r.msg).slice(0, 110)]) };
-    return { alive: false, model: m.id, status: r.status, detail: String(r.msg).slice(0, 140) };
+    return { alive: false, model: m.id, ms, status: r.status, detail: String(r.msg).slice(0, 140) };
   }
   return { alive: null, detail: t("bg_probeFailed") };
 }
@@ -460,12 +622,14 @@ async function runProbe(slug) {
 }
 async function realProbe(slug) {
   const result = await runProbe(slug);
-  LOC.set({ ["probe_" + slug]: { ...result, at: Date.now() } });
+  await LOC.set({ ["probe_" + slug]: { ...result, at: Date.now() } });
+  await appendHist(slug, result);
   return result;
 }
 
 // Batch health-check: fetch the model list ONCE, then probe each provider. A down gateway reports
 // "нет доступа к /v1/models" (distinct from a provider that genuinely has no models).
+const PROBE_GAP_MS = 1000; // one at a time with a pause: concurrent chat probes wedged the local server (2026-11-02)
 let probing = false; // a probe pass is running — the unattended sweep steps aside so they don't double-load /v1
 async function probeAll(slugs, emit = true) {
   probing = true;
@@ -481,9 +645,11 @@ async function probeAll(slugs, emit = true) {
       // completion against the provider, and an MV3 worker can be killed mid-sweep — batching traded
       // the whole run's work for saving a few microsecond-cheap storage writes.
       await LOC.set({ ["probe_" + slug]: { ...out[slug], at: now } });
+      if (out[slug].alive !== null) await appendHist(slug, out[slug]);
       // emit=false for the unattended sweep: it must NOT drive the popup's user-initiated progress bar
       // (which would animate a run the user never started and then stick, since the sweep sends no "done").
       if (emit) try { chrome.runtime.sendMessage({ type: "probeProgress", done: i + 1, total: slugs.length, slug, alive: out[slug].alive }); } catch (e) { /* popup closed */ }
+      if (i < slugs.length - 1) await sleep(PROBE_GAP_MS);
     }
     return { results: out };
   } finally { probing = false; }
@@ -509,7 +675,19 @@ async function healthSweep(force = false) {
   const slugs = (conn_slugs || []).filter((s) => !skip.has(s));
   if (!slugs.length) { await LOC.set({ health_dead: [], last_sweep: Date.now() }); updateBadge(); return; } // clear a stale red badge
   const { results } = await probeAll(slugs, false); // emit=false: unattended — don't drive the popup progress bar
-  const dead = Object.keys(results).filter((s) => results[s].alive === false);
+  let dead = Object.keys(results).filter((s) => results[s].alive === false);
+  // Auto-repair (идея 3): a dead WEB session is often just a rotated cookie the browser already has —
+  // re-capture it in a background tab before shouting. At most once per 6h per provider (tabs are visible).
+  if (st.autoRepair && !refreshing) {
+    const webDead = dead.map((s) => OMNI_WEB.find((p) => p.slug === s)).filter(Boolean);
+    const rep = await LOC.get(webDead.map((p) => "repair_" + p.key));
+    const due = webDead.filter((p) => !rep["repair_" + p.key] || Date.now() - rep["repair_" + p.key] > 6 * 60 * 60 * 1000);
+    if (due.length) {
+      const r = await refreshSessions(due.map((p) => p.key), false);
+      const fixed = new Set(Object.entries((r && r.results) || {}).filter(([, v]) => v.state === "ok").map(([k]) => OMNI_WEB_MAP[k].slug));
+      dead = dead.filter((s) => !fixed.has(s));
+    }
+  }
   const prev = (await LOC.get("health_dead")).health_dead || [];
   const fresh = dead.filter((s) => !prev.includes(s));
   await LOC.set({ health_dead: dead, last_sweep: Date.now() });
@@ -540,6 +718,7 @@ async function applySettings(patch) {
   await LOC.set({ settings: next });
   chrome.alarms.clear(HEALTH_ALARM);
   if (next.sweep) chrome.alarms.create(HEALTH_ALARM, { periodInMinutes: Math.max(5, next.sweepMin || 15), delayInMinutes: 1 });
+  if (prev.nightly !== next.nightly) armNightly(next.nightly);
   // Turning persistence off must not leave captured secrets on disk — purge the mirrored copies.
   if (prev.persistSessions && !next.persistSessions) {
     const all = await LOC.get(null);
@@ -810,7 +989,23 @@ function pollAllOauth() {
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "oauth_poll") pollAllOauth().catch((e) => console.warn("[omni] oauth poll failed", e));
   else if (a.name === HEALTH_ALARM) healthSweep().catch((e) => console.warn("[omni] health sweep failed", e));
+  else if (a.name === NIGHTLY_ALARM) nightlyRefresh().catch((e) => console.warn("[omni] nightly refresh failed", e));
 });
+// Nightly refresh (идея 4): re-capture every known web session at ~04:00 so the morning starts green.
+const NIGHTLY_ALARM = "nightly_refresh";
+function nextNightly() { const d = new Date(); d.setHours(4, 0, 0, 0); if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1); return d.getTime(); }
+async function armNightly(on) {
+  if (!on) { chrome.alarms.clear(NIGHTLY_ALARM); return; }
+  chrome.alarms.get(NIGHTLY_ALARM, (a) => { if (!a) chrome.alarms.create(NIGHTLY_ALARM, { when: nextNightly(), periodInMinutes: 24 * 60 }); });
+}
+async function nightlyRefresh() {
+  const st = await getSettings();
+  if (!st.nightly) return;
+  const keys = await knownWebKeys();
+  if (keys.length) await refreshSessions(keys, false);
+  if (st.sweep) await healthSweep(true);
+}
+getSettings().then((st) => armNightly(st.nightly));
 // Only arm the sweep if it isn't ALREADY scheduled — alarms persist across SW restarts, and a bare
 // create() at module top level would re-fire delayInMinutes on every SW cold-start (collapsing the
 // 15-min cadence to ~2 min → ~7× the completion cost, or starving it when wakes are frequent).

@@ -20,15 +20,6 @@
   "popup_detach": {
     "message": "Открепить в отдельное окно"
   },
-  "popup_tabWeb": {
-    "message": "🍪 Веб"
-  },
-  "popup_tabKey": {
-    "message": "🔑 API-ключ"
-  },
-  "popup_tabOauth": {
-    "message": "🔐 OAuth"
-  },
   "popup_probeAll": {
     "message": "🩺 Проверить все"
   },
@@ -685,5 +676,323 @@
   },
   "perm_grant": {
     "message": "Разрешить доступ"
+  },
+  "nav_dash": {
+    "message": "Пульт"
+  },
+  "nav_wizard": {
+    "message": "Мастер"
+  },
+  "nav_web": {
+    "message": "Веб-сессии"
+  },
+  "nav_key": {
+    "message": "API-ключи"
+  },
+  "nav_oauth": {
+    "message": "OAuth"
+  },
+  "nav_table": {
+    "message": "Таблица шлюзов"
+  },
+  "nav_full": {
+    "message": "Открыть на весь экран"
+  },
+  "dash_working": {
+    "message": "работают"
+  },
+  "dash_broken": {
+    "message": "$1 сломаны"
+  },
+  "dash_conns": {
+    "message": "соединений: $1"
+  },
+  "dash_update": {
+    "message": "↑ доступна v$1"
+  },
+  "dash_updateTitle": {
+    "message": "Открыть настройки OmniRoute, там кнопка обновления"
+  },
+  "dash_refreshAll": {
+    "message": "🔄 Обновить все сессии"
+  },
+  "dash_fillMissing": {
+    "message": "➕ Добить недостающих"
+  },
+  "dash_fillMissingN": {
+    "message": "➕ Добить ($1)"
+  },
+  "dash_grpWarn": {
+    "message": "Скоро понадобится внимание"
+  },
+  "dash_grpOk": {
+    "message": "Работают"
+  },
+  "dash_grpUnk": {
+    "message": "Ещё не проверены"
+  },
+  "dash_emptyTitle": {
+    "message": "В OmniRoute пока нет соединений"
+  },
+  "dash_emptyHint": {
+    "message": "Нажми «Добить недостающих» — Мастер проведёт по сайтам по одному."
+  },
+  "flt_all": {
+    "message": "Все"
+  },
+  "flt_bad": {
+    "message": "Сломаны"
+  },
+  "flt_warn": {
+    "message": "Внимание"
+  },
+  "flt_web": {
+    "message": "Веб"
+  },
+  "flt_key": {
+    "message": "Ключи"
+  },
+  "flt_oauth": {
+    "message": "OAuth"
+  },
+  "flt_free": {
+    "message": "Бесплатные"
+  },
+  "kind_web": {
+    "message": "веб"
+  },
+  "kind_key": {
+    "message": "ключ"
+  },
+  "kind_oauth": {
+    "message": "OAuth"
+  },
+  "kind_retired": {
+    "message": "провайдер убран из OmniRoute"
+  },
+  "unit_ms": {
+    "message": " мс"
+  },
+  "unit_s": {
+    "message": " с"
+  },
+  "exp_gone": {
+    "message": "истекли"
+  },
+  "exp_hours": {
+    "message": "$1 ч"
+  },
+  "exp_days": {
+    "message": "$1 дн"
+  },
+  "exp_soon": {
+    "message": "куки истекут через $1"
+  },
+  "site_down": {
+    "message": "сайт не отвечает"
+  },
+  "probe_slow": {
+    "message": "медленно · $1"
+  },
+  "probe_never": {
+    "message": "не проверялся"
+  },
+  "err_auth": {
+    "message": "вход истёк"
+  },
+  "err_limit": {
+    "message": "упёрся в лимит"
+  },
+  "err_upstream": {
+    "message": "сбой у провайдера"
+  },
+  "err_timeout": {
+    "message": "не ответил вовремя"
+  },
+  "err_flagged": {
+    "message": "OmniRoute пометил как сломанное"
+  },
+  "row_refresh": {
+    "message": "Обновить сессию (откроет сайт в фоне)"
+  },
+  "row_probe": {
+    "message": "Проверить сейчас"
+  },
+  "clean_title": {
+    "message": "Можно убрать"
+  },
+  "clean_go": {
+    "message": "Убрать $1"
+  },
+  "clean_dup": {
+    "message": "дубли одного аккаунта: $1"
+  },
+  "clean_retired": {
+    "message": "провайдеры, которых больше нет в OmniRoute: $1 ($2)"
+  },
+  "clean_dead": {
+    "message": "мёртвые больше 3 дней: $1"
+  },
+  "table_colProv": {
+    "message": "Провайдер"
+  },
+  "table_colType": {
+    "message": "Тип"
+  },
+  "table_colAcc": {
+    "message": "Акк."
+  },
+  "table_colSite": {
+    "message": "Сайт"
+  },
+  "table_colCookie": {
+    "message": "Куки"
+  },
+  "table_colSpeed": {
+    "message": "Скор."
+  },
+  "table_col7d": {
+    "message": "7 дней"
+  },
+  "table_colErr": {
+    "message": "Ошибка"
+  },
+  "table_selAll": {
+    "message": "Выбрать все"
+  },
+  "table_selN": {
+    "message": "выбрано: $1"
+  },
+  "table_hint": {
+    "message": "нажми на строку, чтобы выбрать"
+  },
+  "table_refreshSel": {
+    "message": "🔄 Обновить"
+  },
+  "table_delSel": {
+    "message": "🗑 Сломанные"
+  },
+  "wiz_step": {
+    "message": "Осталось: $1"
+  },
+  "wiz_eta": {
+    "message": "~$1 мин"
+  },
+  "wiz_conns": {
+    "message": "соединений: $1"
+  },
+  "wiz_skip": {
+    "message": "Пропустить"
+  },
+  "wiz_never": {
+    "message": "Не предлагать"
+  },
+  "wiz_delete": {
+    "message": "Удалить соединения"
+  },
+  "wiz_next": {
+    "message": "Дальше в очереди"
+  },
+  "wiz_more": {
+    "message": "и ещё $1"
+  },
+  "wiz_doneTitle": {
+    "message": "Всё в порядке — чинить нечего"
+  },
+  "wiz_doneHint": {
+    "message": "Мастер покажет сюда всё, что сломается."
+  },
+  "wiz_showAll": {
+    "message": "Показать и недостающих"
+  },
+  "wiz_whyImport": {
+    "message": "есть в списке с другого ПК"
+  },
+  "wiz_whyMissing": {
+    "message": "ещё не добавлен"
+  },
+  "wiz_txtWebFix": {
+    "message": "Открою $1 в фоновой вкладке и заберу свежие куки. Если ты там всё ещё залогинен — починится само."
+  },
+  "wiz_txtNeedLogin": {
+    "message": "Сессия на $1 правда закончилась. Открою страницу входа: войди и отправь любое сообщение — добавлю сам и пришлю уведомление."
+  },
+  "wiz_txtWebAdd": {
+    "message": "Открою $1. Войди и отправь любое сообщение — расширение само добавит сессию в OmniRoute и пришлёт уведомление. Окно можно закрыть."
+  },
+  "wiz_txtOauth": {
+    "message": "Нужно заново войти через OAuth. Открою раздел OAuth и запущу вход."
+  },
+  "wiz_txtKey": {
+    "message": "Ключ перестал работать. Открою страницу, где взять новый, и форму, куда его вставить."
+  },
+  "wiz_txtRetired": {
+    "message": "OmniRoute больше не поддерживает этого провайдера — соединения бесполезны."
+  },
+  "wiz_goFix": {
+    "message": "Починить сейчас"
+  },
+  "wiz_goLogin": {
+    "message": "Открыть и войти"
+  },
+  "wiz_goKey": {
+    "message": "Взять новый ключ"
+  },
+  "wiz_goDelete": {
+    "message": "Удалить ($1)"
+  },
+  "wiz_refreshing": {
+    "message": "Обновляю сессию на $1…"
+  },
+  "wiz_fixed": {
+    "message": "Починено — работает"
+  },
+  "wiz_needLogin": {
+    "message": "Нужен вход на сайте"
+  },
+  "wiz_waitLogin": {
+    "message": "Жду вход на сайте — добавлю сам, когда появится сессия (15 мин)."
+  },
+  "refresh_start": {
+    "message": "Открываю сайты в фоне по одному…"
+  },
+  "refresh_progress": {
+    "message": "Обновляю $1/$2 · $3"
+  },
+  "refresh_done": {
+    "message": "Обновлено: 🟢 $1 работают · 🔴 $2 нужен вход"
+  },
+  "refresh_none": {
+    "message": "Нечего обновлять: в OmniRoute нет веб-сессий"
+  },
+  "refresh_busy": {
+    "message": "Обновление уже идёт"
+  },
+  "set_autoRepair": {
+    "message": "Авто-ремонт сломанных веб-сессий"
+  },
+  "set_autoRepairHint": {
+    "message": "Фоновая проверка нашла мёртвую веб-сессию → расширение само открывает сайт в фоновой вкладке, забирает свежие куки и проверяет снова. Не чаще раза в 6 часов на провайдера."
+  },
+  "set_nightly": {
+    "message": "Ночное обновление сессий (04:00)"
+  },
+  "set_import": {
+    "message": "⬆ Загрузить список → в Мастер"
+  },
+  "set_importDone": {
+    "message": "В Мастер добавлено: $1 из $2 (остальные уже есть)"
+  },
+  "set_importBad": {
+    "message": "Файл не похож на список соединений"
+  },
+  "bg_autoAddOk": {
+    "message": "✓ $1 добавлен в OmniRoute и работает"
+  },
+  "bg_autoAddFail": {
+    "message": "⚠ $1: сессия поймана, но проверка не прошла — $2"
+  },
+  "bg_noSessionCookie": {
+    "message": "на сайте нет сессионной куки — нужен вход"
   }
 }

@@ -122,9 +122,21 @@ function omniAccountId(cred) {
   return h.toString(16).slice(0, 8);
 }
 
+// Account e-mail from a JWT in the credential, when the provider puts one there — display only (the
+// connection NAME keeps the accountId so OmniRoute's upsert-by-name stays stable). "" when unknown.
+function omniAccountEmail(cred) {
+  const m = String(cred || "").match(/eyJ[A-Za-z0-9_-]+\.(eyJ[A-Za-z0-9_-]+)/);
+  if (!m) return "";
+  try {
+    const p = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const e = p.email || p.mail || p.preferred_username || "";
+    return /@/.test(e) ? String(e).slice(0, 80) : "";
+  } catch (e) { return ""; }
+}
+
 if (typeof self !== "undefined") {
   Object.assign(self, {
     OMNI_BASE, OMNI_WEB, OMNI_WEB_MAP, OMNI_APIKEY, OMNI_APIKEY_MAP, OMNI_OAUTH, OMNI_OAUTH_MAP,
-    omniBuildCredential, omniAccountId,
+    omniBuildCredential, omniAccountId, omniAccountEmail,
   });
 }
