@@ -1179,6 +1179,9 @@ async function runRefresh(keys, btn) {
 }
 function onRefreshProgress(m) {
   const bar = $("probeProgBar"), res = $("probeAllRes");
+  if (m.phase === "done") { // each finished provider: repaint the live report; the last one ends the run
+    loadStats(false).then(() => { renderRefreshReport(); if (m.done >= m.total) { $("refreshAllBtn").disabled = false; setTimeout(() => $("probeProg").classList.add("hide"), 900); loadConnections(); } });
+  }
   $("probeProg").classList.remove("hide");
   bar.style.width = Math.round((m.done / m.total) * 100) + "%";
   res.className = "res show pend";
@@ -1193,6 +1196,8 @@ $("fullBtn").addEventListener("click", () => chrome.tabs.create({ url: chrome.ru
 async function loadStats(heavy = true) {
   const s = await msg({ action: "getStats" });
   hist = (s && s.hist) || {}; sites = (s && s.sites) || {}; lastRefresh = (s && s.lastRefresh) || lastRefresh;
+  // A refresh started before this popup opened keeps running in the SW — pick its progress back up.
+  if (s && s.refreshState && s.refreshState.running) { $("refreshAllBtn").disabled = true; onRefreshProgress(s.refreshState); }
   if (!heavy) return;
   const webKeys = Object.keys(conns).filter((k) => OMNI_WEB_MAP[k]);
   const stale = webKeys.filter((k) => !sites[k] || Date.now() - sites[k].at > 30 * 60 * 1000);
@@ -1225,7 +1230,7 @@ async function loginAgain(slug, btn) {
   if (btn) { btn.disabled = true; btn.textContent = t("det_loginWorking"); }
   const r = await msg({ action: "loginAgain", key: slug });
   if (btn) {
-    btn.textContent = r && r.pushed ? (r.alive === false ? "🔴 " + t("det_loginPushedDead") : "✓ " + t("det_loginPushed")) : r && r.opened ? t("det_loginOpened") : "🔴 " + t("popup_error");
+    btn.textContent = r && r.pushed ? (r.state === "ok" ? "✓ " + t("det_loginPushed") : r.state === "needLogin" ? "🔑 " + t("det_loginPushedDead") : "⚪ " + t("det_loginPushedUnk")) : r && r.opened ? t("det_loginOpened") : "🔴 " + t("popup_error");
     btn.title = r && r.connName ? (r.updated ? t("rs_updatedConn", [r.connName]) : t("rs_newConn", [r.connName])) + (r.detail ? " · " + r.detail : "") : "";
   }
   if (r && r.pushed) { const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {}; await loadStats(false); await loadConnections(); refresh(); }
@@ -1322,7 +1327,7 @@ function renderRefreshReport() {
   const card = el("div", "rep");
   const h = el("div", "rep-h");
   const okN = entries.filter(([, v]) => v.state === "ok").length;
-  h.append(el("b", null, t("rs_title", [String(okN), String(entries.length)])), el("span", "mut", " · " + ago(lastRefresh.at)), el("span", "grow"));
+  h.append(el("b", null, t("rs_title", [String(okN), String(entries.length)])), el("span", "mut", " · " + (lastRefresh.running ? t("rs_running") : ago(lastRefresh.at))), el("span", "grow"));
   const x = el("button", "ibtn", "✕"); x.title = t("web_dismissTitle"); x.setAttribute("aria-label", t("web_dismissLabel"));
   x.onclick = () => { refreshDismissed = lastRefresh.at; chrome.storage.local.set({ refresh_dismissed: refreshDismissed }); renderRefreshReport(); };
   h.append(x); card.append(h);

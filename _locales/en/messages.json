@@ -1050,7 +1050,7 @@
     "message": "refreshed, check gave no answer"
   },
   "rs_error": {
-    "message": "failed to send to OmniRoute"
+    "message": "not working — provider or OmniRoute error"
   },
   "rs_hint": {
     "message": "The tabs opened and closed by themselves — that's how fresh cookies were grabbed. For 🔑 press “Log in again”: log in on the site, the rest happens by itself."
@@ -1128,7 +1128,7 @@
     "message": "Logged in — session sent"
   },
   "det_loginPushedDead": {
-    "message": "Session sent but the check failed"
+    "message": "Session sent but the site rejected it — log in again"
   },
   "det_loginOpened": {
     "message": "Opened the site — log in there"
@@ -1144,5 +1144,11 @@
   },
   "set_sizeL": {
     "message": "Large"
+  },
+  "rs_running": {
+    "message": "running…"
+  },
+  "det_loginPushedUnk": {
+    "message": "Session sent, the check gave no answer"
   }
 }

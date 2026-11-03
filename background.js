@@ -70,13 +70,16 @@ chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
   const cookie = h["cookie"] || "";
   if (!cookie) return; // wait for a request that actually carries the session
   const auth = h["authorization"] || "";
-  const token = /^bearer\s+\S/i.test(auth) ? auth.replace(/^bearer\s+/i, "").trim() : "";
+  let token = /^bearer\s+\S/i.test(auth) ? auth.replace(/^bearer\s+/i, "").trim() : "";
   const capKey = "cap_" + provider.key;
   capSeen[provider.key] = Date.now(); // a refresh run waits on this, even when the cookie didn't change
   // Dedup: a busy page fires many XHR/s carrying the SAME cookie — only write (and repaint the badge)
   // when the credential actually changed, else we storm session storage + a full scan on every request.
   SEC.get(capKey).then((cur) => {
     const prev = cur[capKey];
+    // Not every request of a site carries the Bearer (DeepSeek's static calls don't) — a request without
+    // one must not wipe the token an earlier request delivered.
+    if (!token && prev && prev.token) token = prev.token;
     if (prev && prev.cookie === cookie && prev.token === token) { maybeAutoAdd(provider.key); return; }
     // Analytics cookies change on nearly every request; only a change of the SESSION part is a new
     // capture. Otherwise keep `at` (so a sent capture doesn't pop back into "ready to send" every few
@@ -139,14 +142,14 @@ async function maybeAutoAdd(key) {
 // /login is a 404) and let the cookie watcher finish once the user logs in.
 async function loginAgain(key) {
   const p = OMNI_WEB_MAP[key]; if (!p) return { ok: false };
-  if (p.cred.t === "cookie") {
-    const cap = await captureFromStore(p);
+  {
+    const cap = p.cred.t === "cookie" ? await captureFromStore(p) : (await SEC.get("cap_" + key))["cap_" + key];
     if (hasSession(p, cap)) {
       const r = await sendToOmni(key);
       if (r && r.ok) {
         await LOC.set({ ["sent_" + key]: Date.now() });
         const pr = await realProbe(p.slug);
-        return { ok: true, pushed: true, connName: r.connName, updated: r.updated, alive: pr.alive, detail: pr.detail };
+        return { ok: true, pushed: true, connName: r.connName, updated: r.updated, alive: pr.alive, state: probeState(pr), detail: pr.detail };
       }
       return { ok: false, error: (r && r.error) || "" };
     }
@@ -193,17 +196,30 @@ const REFRESH_WAIT_MS = 15000;
 // HttpOnly included (needs the "cookies" permission + host access). No tab, no waiting for an XHR.
 async function cookieHeaderFor(p) {
   if (!chrome.cookies) return "";
+  // Read from the cookie store the site is ACTUALLY open in: in Firefox a tab may live in a container
+  // (cookieStoreId ≠ default), and with first-party isolation / partitioning a bare getAll({url}) misses
+  // the session (seen 2026-11-03: Perplexity logged in, store read returned no session cookie).
+  const stores = new Set([undefined]);
+  try { for (const tb of await chrome.tabs.query({})) if (tb.url && p.hostRe.test(tb.url) && tb.cookieStoreId) stores.add(tb.cookieStoreId); } catch (e) { /* tabs unavailable */ }
   const seen = new Map();
   for (const url of [p.site, p.loginUrl].filter(Boolean)) {
-    try { for (const c of await chrome.cookies.getAll({ url })) if (!seen.has(c.name)) seen.set(c.name, c.value); } catch (e) { /* no host access */ }
+    for (const storeId of stores) {
+      const base = storeId ? { url, storeId } : { url };
+      // firstPartyDomain/partitionKey are Firefox/Chrome extras; an engine that rejects one gets the plain query.
+      for (const q of [{ ...base, firstPartyDomain: null, partitionKey: {} }, { ...base, partitionKey: {} }, base]) {
+        try { for (const c of await chrome.cookies.getAll(q)) if (!seen.has(c.name)) seen.set(c.name, c.value); break; } catch (e) { /* option unsupported → next form */ }
+      }
+    }
   }
   return [...seen].map(([n, v]) => n + "=" + v).join("; ");
 }
+// Fresh capture from the cookie store — but never REPLACE a capture that has a session with one that
+// doesn't (the store can legitimately lack what the page sends, see above). Returns the usable capture.
 async function captureFromStore(p) {
-  const cookie = await cookieHeaderFor(p);
-  if (!cookie) return null;
   const { ["cap_" + p.key]: prev } = await SEC.get("cap_" + p.key);
-  const cap = { provider: p.key, slug: p.slug, label: p.label, cookie, token: (prev && prev.token) || "", cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now() };
+  const cookie = await cookieHeaderFor(p);
+  const cap = cookie ? { provider: p.key, slug: p.slug, label: p.label, cookie, token: (prev && prev.token) || "", cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now() } : null;
+  if (!cap || !hasSession(p, cap)) return prev && hasSession(p, prev) ? prev : cap;
   cap.accountId = omniAccountId(omniBuildCredential(p, cap));
   cap.email = omniAccountEmail(omniBuildCredential(p, cap));
   cap.sessKey = sessionKey(p, cookie, cap.token);
@@ -212,44 +228,51 @@ async function captureFromStore(p) {
   const st = await getSettings(); if (st.persistSessions) await LOC.set({ ["cap_" + p.key]: cap });
   return cap;
 }
+// A probe's "dead" is only a login problem on 401/403; a 400/404/5xx is the provider or OmniRoute failing.
+const probeState = (pr) => pr.alive === true ? "ok" : pr.alive === false && (pr.status === 401 || pr.status === 403) ? "needLogin" : pr.alive === false ? "error" : "unknown";
 let refreshing = null;
+let refreshState = null; // { running, done, total, key, phase, results } — lives in the SW, so a reopened popup sees it
 async function refreshSessions(keys, emit = true) {
   if (refreshing) return { busy: true };
   refreshing = (async () => {
     const out = {};
+    const tell = (m) => { refreshState = { running: true, total: keys.length, results: out, ...m }; if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", ...m, total: keys.length }); } catch (e) { /* popup closed */ } };
     for (let i = 0; i < keys.length; i++) {
       const p = OMNI_WEB_MAP[keys[i]];
       if (!p) continue;
-      if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", phase: "start", done: i, total: keys.length, key: p.key }); } catch (e) { /* popup closed */ }
+      tell({ phase: "start", done: i, key: p.key });
       const start = Date.now();
-      // Cookie providers: the browser's cookie store has the session already. Token providers (DeepSeek's
-      // Bearer lives in page localStorage) still need the page to send one authenticated request.
-      const fromStore = p.cred.t === "cookie" ? await captureFromStore(p) : null;
-      if (!fromStore) {
+      // 1) a session the browser already has: the cookie store (cookie providers) or what the open page
+      //    sent (token providers — DeepSeek's Bearer lives in page localStorage).
+      let cap = p.cred.t === "cookie" ? await captureFromStore(p) : (await SEC.get("cap_" + p.key))["cap_" + p.key];
+      // 2) nothing usable → let the site send one authenticated request from a background tab.
+      if (!hasSession(p, cap)) {
         let tab = null;
         try { tab = await chrome.tabs.create({ url: p.site, active: false }); } catch (e) { out[p.key] = { state: "error", detail: String(e).slice(0, 80) }; continue; }
-        while (Date.now() - start < REFRESH_WAIT_MS && !(capSeen[p.key] > start)) await sleep(500);
+        while (Date.now() - start < REFRESH_WAIT_MS) {
+          await sleep(500);
+          if (capSeen[p.key] > start) { cap = (await SEC.get("cap_" + p.key))["cap_" + p.key]; if (hasSession(p, cap)) break; }
+        }
         try { await chrome.tabs.remove(tab.id); } catch (e) { /* user closed it */ }
       }
-      if (!fromStore && !(capSeen[p.key] > start)) out[p.key] = { state: "noSession", detail: t("bg_noRequest") };
-      else {
-        if (!fromStore) await sleep(300); // let the capture write land in session storage
-        const { ["cap_" + p.key]: cap } = await SEC.get("cap_" + p.key);
-        if (!hasSession(p, cap)) { out[p.key] = { state: "needLogin", detail: t("bg_noSessionCookie") }; LOC.set({ ["repair_" + p.key]: Date.now() }); continue; }
+      if (!hasSession(p, cap)) {
+        out[p.key] = { state: capSeen[p.key] > start ? "needLogin" : "noSession", detail: capSeen[p.key] > start ? t("bg_noSessionCookie") : t("bg_noRequest") };
+      } else {
         const r = await sendToOmni(p.key);
         if (!r || !r.ok) out[p.key] = { state: "error", detail: (r && r.error) || "" };
         else {
-          if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", phase: "probe", done: i, total: keys.length, key: p.key }); } catch (e) { /* popup closed */ }
+          tell({ phase: "probe", done: i, key: p.key });
           const pr = await realProbe(p.slug);
-          out[p.key] = { state: pr.alive === true ? "ok" : pr.alive === false ? "needLogin" : "unknown", detail: pr.detail || "", connName: r.connName, updated: r.updated };
+          out[p.key] = { state: probeState(pr), detail: pr.detail || "", connName: r.connName, updated: r.updated };
         }
       }
       LOC.set({ ["repair_" + p.key]: Date.now() });
-      if (emit) try { chrome.runtime.sendMessage({ type: "refreshProgress", done: i + 1, total: keys.length, key: p.key, state: out[p.key].state }); } catch (e) { /* popup closed */ }
+      await LOC.set({ last_refresh: { at: Date.now(), results: { ...out }, running: i < keys.length - 1 } }); // partial report, live
+      tell({ phase: "done", done: i + 1, key: p.key, state: out[p.key].state });
     }
-    await LOC.set({ last_refresh: { at: Date.now(), results: out } });
+    await LOC.set({ last_refresh: { at: Date.now(), results: out, running: false } });
     return { results: out };
-  })().finally(() => { refreshing = null; });
+  })().finally(() => { refreshing = null; refreshState = null; });
   return refreshing;
 }
 // Web providers that already live in OmniRoute (the ones worth refreshing unattended).
@@ -395,7 +418,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
       LOC.get(null).then((all) => {
         const hist = {}, sites = {};
         for (const k in all) { if (k.startsWith("hist_")) hist[k.slice(5)] = all[k]; else if (k.startsWith("site_")) sites[k.slice(5)] = all[k]; }
-        send({ hist, sites, lastRefresh: all.last_refresh || null, refreshing: !!refreshing });
+        send({ hist, sites, lastRefresh: all.last_refresh || null, refreshing: !!refreshing, refreshState });
       });
       return true;
     default: return false;

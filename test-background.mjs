@@ -272,6 +272,16 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
   assert.notEqual(chrome.storage.session._dump()["cap_perplexity-web"].at, first, "a new session token IS a new capture");
 }
 
+// ── a later request WITHOUT the Bearer must not wipe the token an earlier request delivered (DeepSeek) ──
+{
+  const { chrome } = boot();
+  fireCapture(chrome, xhr("https://chat.deepseek.com/api/v0/chat", "a=1", [{ name: "Authorization", value: "Bearer TOKEN123" }]));
+  await tick();
+  fireCapture(chrome, xhr("https://chat.deepseek.com/api/v0/static", "a=2"));
+  await tick();
+  assert.equal(chrome.storage.session._dump()["cap_deepseek-web"].token, "TOKEN123", "token survives a token-less request");
+}
+
 // ── a refreshed session UPDATES the connection this browser feeds — it never mints a duplicate ──
 {
   const posts = [], patches = [];
