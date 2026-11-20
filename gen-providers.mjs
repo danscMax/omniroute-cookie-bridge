@@ -172,7 +172,7 @@ writeFileSync(join(process.cwd(), "providers.gen.js"), body);
 // (OMNI_BASE, tabs.query/create). "localhost" would be a permission we never exercise: a headless
 // `node serve` binds 0.0.0.0 (IPv4), while browsers resolve localhost to ::1 first — so that host
 // never even connects. Don't ask for what you can't use.
-const FIXED_HOSTS = ["http://127.0.0.1:20128/*", "https://aistudio.google.com/*"];
+const FIXED_HOSTS = ["http://127.0.0.1/*", "https://aistudio.google.com/*"];
 const webHosts = new Set(web.flatMap((w) => w.perms));
 const hostPerms = [...FIXED_HOSTS, ...[...webHosts].filter((h) => !FIXED_HOSTS.includes(h)).sort()];
 const manifestPath = join(process.cwd(), "manifest.json");
