@@ -48,6 +48,10 @@ async function refreshHostBanner() {
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
+function isEditing(container) {
+  const active = document.activeElement;
+  return !!(active && container && container.contains(active) && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable));
+}
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
 let caps = {};              // captured web sessions (cap_<key>)
@@ -59,6 +63,8 @@ let connUnreachable = false; // true = couldn't READ connections (outage) vs gen
 let probes = {};            // persisted last probe verdict per slug
 let activeProviderKey = null;
 let serverOnline = false;
+let serverDetail = "";
+let serverState = "unreachable";
 let lastWebSig = null;
 
 // ── tabs ────────────────────────────────────────────────────────────────────
@@ -126,11 +132,33 @@ function showProbe(resEl, id, p, added) {
   else if (p.alive === false) setRes(resEl, "bad", `🔴 ${t("popup_probeFailed", [pre, String(p.detail)])}${age}`);
   else setRes(resEl, "mut", `⚪ ${t("popup_probeUnknown", [pre, (p && p.detail) || t("popup_noAnswer")])}`);
 }
+// Keep batch outcomes through roster re-renders. These contain counts/errors only, never keys.
+const batchResults = new Map();
+function showBatchResult(resEl, r, zip = false) {
+  const known = Number.isSafeInteger(r.added) && Number.isSafeInteger(r.failed) && Number.isSafeInteger(r.total)
+    && r.added >= 0 && r.failed >= 0 && r.added + r.failed === r.total;
+  const complete = known && r.ok === true && r.added > 0 && r.failed === 0;
+  const summary = known
+    ? (zip ? t("oauth_zipDone", [String(r.added), String(r.total), String(r.failed)]) : t("popup_batchDone", [String(r.added), String(r.total), String(r.failed)]))
+    : t("popup_batchUnknown");
+  const details = (r.errors || []).slice(0, 5).map((e) => t("popup_batchEntry", [String(e.index + 1), e.message || t("popup_error")]));
+  if (r.error) details.unshift(r.error);
+  if ((r.errors || []).length > 5) details.push(t("popup_batchMore", [String(r.errors.length - 5)]));
+  setRes(resEl, complete ? "ok" : known && r.added > 0 ? "mut" : "bad", [summary, ...details].join(" · "));
+}
+// A provider-level probe cannot verify individual batch entries. Keep the import result and
+// refresh the roster even when a response was lost after some writes succeeded.
+async function finishBatch(resEl, r, zip = false) {
+  if (r.slug) batchResults.set((zip ? "zip:" : "key:") + r.slug, r);
+  showBatchResult(resEl, r, zip);
+  await loadConnections();
+}
 // honest add → probe flow (shared by web + apikey)
 async function addAndProbe(resEl, doAdd, probeBtn) {
-  if (!serverOnline) { setRes(resEl, "bad", "⚠ " + t("popup_omniDown")); return null; }
+  if (!serverOnline) { setRes(resEl, "bad", "⚠ " + (serverDetail || t("popup_omniDown"))); return null; }
   setRes(resEl, "pend", t("popup_adding"));
   const r = await doAdd();
+  if (r && (r.batch || "added" in r)) { await finishBatch(resEl, r); return r; }
   if (!r || !r.ok) { setRes(resEl, "bad", "🔴 " + ((r && r.error) || t("popup_error"))); return r; }
   setRes(resEl, "pend", r.updated && r.connName ? t("popup_updatedProbing", [r.connName]) : t("popup_addedProbing", [r.id ? ` (${r.id.slice(0, 8)}…)` : ""]));
   const p = await msg({ action: "probe", slug: r.slug });
@@ -182,8 +210,7 @@ function webCard(p, cap) {
   actions.append(send, probe, dismiss); card.append(actions);
   const res = el("div", "res"); card.append(res);
   const hasOther = conns[p.slug] && conns[p.slug].total;
-  // The SW decides which connection this session refreshes (same account id / the one this browser
-  // feeds / the only one) — ask it, and SAY which one, so the user sees what gets overwritten.
+  // The SW resolves a stable account identity or the slot this browser wrote — show that target.
   let slotConn = null;
   const asNew = el("button", "ghost sm hide", t("web_asNew")); asNew.title = t("web_asNewTitle");
   actions.insertBefore(asNew, probe);
@@ -324,6 +351,7 @@ function keyForm(p) {
   actions.append(add, probe); box.append(actions);
   const res = el("div", "res"); box.append(res);
   if (probes[p.slug]) { showProbe(res, null, probes[p.slug], false); probe.onclick = () => reprobe(res, p.slug, null, probe); }
+  if (batchResults.has("key:" + p.slug)) showBatchResult(res, batchResults.get("key:" + p.slug));
   function sync() {
     const k = key.value.trim();
     if (!k) { predict.className = "predict"; predict.textContent = ""; add.textContent = t("popup_add"); add.classList.remove("upd"); return; }
@@ -336,25 +364,33 @@ function keyForm(p) {
   name.addEventListener("input", sync);
   key.addEventListener("keydown", (e) => { if (e.key === "Enter") add.click(); });
   add.onclick = async () => {
-    if (!bulkArea.classList.contains("hide")) { // bulk mode: several keys at once
-      const keys = bulkArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
-      if (!keys.length) { setRes(res, "bad", t("key_pasteKeys")); return; }
-      add.disabled = true;
-      const r = await addAndProbe(res, () => msg({ action: "bulkAddApiKey", slug: p.slug, keys }), probe);
-      add.disabled = false;
-      if (r && r.ok) bulkArea.value = "";
-      return;
-    }
-    const apiKey = key.value.trim();
-    if (!apiKey) { setRes(res, "bad", t("key_pasteKey")); return; }
     const psd = {};
     for (const ef of (p.extra || [])) {
       const v = extraInputs[ef.key].value.trim();
       if (ef.required && !v) { setRes(res, "bad", t("key_fillField", [ef.label])); return; }
       if (v) psd[ef.key] = v;
     }
-    if (advBase.value.trim()) psd.baseUrl = advBase.value.trim(); // custom endpoint override
-    if (advTag.value.trim()) psd.tag = advTag.value.trim();       // routing group tag
+    if (advBase.value.trim()) psd.baseUrl = advBase.value.trim();
+    if (advTag.value.trim()) psd.tag = advTag.value.trim();
+    if (!bulkArea.classList.contains("hide")) { // bulk mode: several keys at once
+      const keys = bulkArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
+      if (!keys.length) { setRes(res, "bad", t("key_pasteKeys")); return; }
+      add.disabled = true;
+      box.dataset.saving = "1";
+      try {
+        const r = await addAndProbe(res, () => msg({ action: "bulkAddApiKey", slug: p.slug, keys, psd }), probe);
+        if (r && r.ok) bulkArea.value = "";
+        else if (r && Number.isSafeInteger(r.failed) && r.errors && r.errors.length === r.failed) {
+          // Retry only failed rows, in their original order; successful rows may be create-only upstream.
+          const failed = new Set(r.errors.map((e) => e.index));
+          bulkArea.value = keys.filter((_, i) => failed.has(i)).join("\n");
+        }
+      } finally { delete box.dataset.saving; add.disabled = false; }
+      return;
+    }
+    const apiKey = key.value.trim();
+    if (!apiKey) { setRes(res, "bad", t("key_pasteKey")); return; }
+    batchResults.delete("key:" + p.slug);
     add.disabled = true;
     const r = await addAndProbe(res, () => msg({ action: "addApiKey", slug: p.slug, name: name.value.trim(), apiKey, psd }), probe);
     add.disabled = false;
@@ -380,7 +416,8 @@ function keyRow(p) {
   return row;
 }
 function renderKeyList() {
-  if (document.activeElement && $("keyList").contains(document.activeElement)) return; // don't wipe a key being typed
+  if ($("keyList").querySelector(".keyform[data-saving]")) return; // roster refresh must retain failed rows and their extra fields
+  if (isEditing($("keyList"))) return; // don't wipe a key being typed
   const q = $("keySearch").value.trim().toLowerCase();
   const box = $("keyList"); box.textContent = "";
   const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
@@ -439,10 +476,11 @@ function oauthCancelBtn(o) {
   return cancel;
 }
 // Bulk ZIP import row for providers that support it (claude/codex/antigravity) — a .zip of exported
-// accounts → base64 (File can't cross the SW message intact) → zipImport → probe result.
+// accounts → base64 (File can't cross the SW message intact) → zipImport → per-entry result.
 function zipImportRow(o) {
   const wrap = el("div");
   const zres = el("div", "res");
+  if (batchResults.has("zip:" + o.slug)) showBatchResult(zres, batchResults.get("zip:" + o.slug), true);
   const fileBtn = el("button", "ghost sm grow", t("oauth_zipImport"));
   const file = el("input", "hide"); file.type = "file"; file.accept = ".zip";
   fileBtn.onclick = () => file.click();
@@ -453,7 +491,7 @@ function zipImportRow(o) {
     if (!b64) { setRes(zres, "bad", t("oauth_zipReadFail")); return; }
     setRes(zres, "pend", t("oauth_zipImporting"));
     const res = await msg({ action: "zipImport", provider: o.slug, b64 });
-    if (res && res.ok) { setRes(zres, "ok", t("oauth_zipDone", [String(res.added)])); loadConnections(); }
+    if (res && (res.batch || "added" in res)) await finishBatch(zres, res, true);
     else setRes(zres, "bad", "🔴 " + ((res && res.error) || t("popup_error")));
     file.value = "";
   };
@@ -534,7 +572,7 @@ function oauthCard(o) {
 }
 
 function renderOauth() {
-  if (document.activeElement && $("oauthList") && $("oauthList").contains(document.activeElement)) return; // don't wipe a token being typed
+  if (isEditing($("oauthList"))) return; // don't wipe a token being typed
   $("bOauth").textContent = String(OMNI_OAUTH.length);
   const q = ($("oauthSearch").value || "").trim().toLowerCase();
   const match = (o) => !q || o.label.toLowerCase().includes(q) || o.slug.includes(q);
@@ -558,7 +596,7 @@ $("globalSearch").addEventListener("input", debounce(() => {
   renderWeb(); keyPaneFill(); renderOauth();
 }, 140));
 async function startOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: serverDetail || t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", userCode: "…", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthStart", provider: slug });
   if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
@@ -566,7 +604,7 @@ async function startOauth(slug) {
 }
 // Redirect/PKCE: kick off the browser login; OmniRoute's callback server completes it, we poll.
 async function connectOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: serverDetail || t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", kind: "redirect", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthConnect", provider: slug });
   if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
@@ -599,7 +637,7 @@ async function refreshOauth() {
 function setFooter() {
   let g = 0, b = 0; for (const k in conns) { g += conns[k].good || 0; b += conns[k].bad || 0; }
   const health = `🔗 ${connTotal}${g ? ` · 🟢 ${g}` : ""}${b ? ` · 🔴 ${b}` : ""} · 127.0.0.1:20128`;
-  $("ftrHint").textContent = !serverOnline ? t("popup_footerDown")
+  $("ftrHint").textContent = !serverOnline ? (serverState === "unauthenticated" ? t("bg_needLogin") : serverDetail || t("popup_footerDown"))
     : connUnreachable ? t("popup_footerUnreadable")
     : connTotal ? health
     : t("popup_footerLogin");
@@ -611,6 +649,8 @@ async function probeServer() {
   // fetch: Firefox blocks a direct http fetch from the extension's secure moz-extension context to the
   // http loopback server as mixed content (Chrome exempts loopback). The tab path is http→http.
   const r = await msg({ action: "ping" }).catch(() => null);
+  serverState = (r && r.state) || (r && r.ok ? "ready" : "unreachable");
+  serverDetail = (r && r.detail) || "";
   if (r && r.ok) { serverOnline = true; dot.className = "dot ok"; txt.textContent = "127.0.0.1:20128"; }
   // Show the real reason (from runInDash: tab open / injection / timeout) instead of a bare "недоступен".
   else { serverOnline = false; dot.className = "dot bad"; txt.textContent = (r && r.detail) ? "127.0.0.1:20128 — " + r.detail : t("popup_srvDown"); }
@@ -795,8 +835,8 @@ function onProbeProgress(m) {
   res.textContent = t("popup_probingWith", [String(m.done), String(m.total), label]) + (eta ? " · " + t("popup_probeEta", [String(eta)]) : "");
 }
 let sentAt = {}; // web key → when its current capture was last pushed (a sent capture isn't "ready to send")
-async function refresh() {
-  const r = await msg({ action: "getAll" });
+async function refresh(discover = false) {
+  const r = await msg({ action: "getAll", ...(discover === true ? { discover: true } : {}) });
   caps = (r && r.caps) || {};
   const loc = await chrome.storage.local.get(OMNI_WEB.map((p) => "sent_" + p.key));
   sentAt = {}; for (const p of OMNI_WEB) if (loc["sent_" + p.key]) sentAt[p.key] = loc["sent_" + p.key];
@@ -1580,7 +1620,7 @@ else if (windowed) {
   const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
   await detectActiveTab();
   initKeyPane();
-  await refresh();
+  await refresh(true);
   await refreshHostBanner(); // Firefox: show the "grant access" banner if 127.0.0.1 isn't permitted yet
   await probeServer();
   if (serverOnline) { await fetchConnections(); $("probeAllBtn").disabled = !connTotal; }

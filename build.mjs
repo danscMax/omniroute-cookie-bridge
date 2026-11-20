@@ -20,6 +20,13 @@ if (pkg.version !== root.version) {
   throw new Error(`version drift: manifest.json=${root.version} vs package.json=${pkg.version} — bump both`);
 }
 
+// Reject generator/source drift before replacing either build. Firefox cannot use port-qualified patterns;
+// the permission covers loopback ports, while runtime URLs still target only :20128.
+if (!root.host_permissions?.includes('http://127.0.0.1/*') ||
+    root.host_permissions.some((host) => host.startsWith('http://127.0.0.1:'))) {
+  throw new Error('manifest.json must use the portless loopback permission http://127.0.0.1/*');
+}
+
 function emit(dir, manifest) {
   const out = join(ROOT, 'build', dir);
   rmSync(out, { recursive: true, force: true });

@@ -18,7 +18,7 @@
     "http://127.0.0.1/*"
   ],
   "host_permissions": [
-    "http://127.0.0.1:20128/*",
+    "http://127.0.0.1/*",
     "https://aistudio.google.com/*",
     "https://*.adapta.one/*",
     "https://*.blackbox.ai/*",
