@@ -33,19 +33,19 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 1. capture lands in session, and is mirrored to disk when persistSessions is on ─────────────
 {
   const { chrome } = boot();
-  fireCapture(chrome, xhr("https://claude.ai/backend-api/conversation", "session=abc123; other=1"));
+  fireCapture(chrome, xhr("https://claude.ai/backend-api/conversation", "sessionKey=synthetic-abc123; other=1"));
   await tick();
   assert.deepEqual(capsIn(chrome.storage.session), ["cap_claude-web"], "capture stored in session");
   assert.deepEqual(capsIn(chrome.storage.local), ["cap_claude-web"], "capture MIRRORED to disk (persistSessions default on)");
   const disk = chrome.storage.local._dump()["cap_claude-web"];
-  assert.equal(disk.cookie, "session=abc123; other=1", "disk copy carries the credential");
+  assert.equal(disk.cookie, "sessionKey=synthetic-abc123; other=1", "disk copy carries the credential");
   assert.ok(disk.accountId, "disk copy carries a stable accountId");
 }
 
 // ── 2. persistSessions OFF → nothing is written to disk ─────────────────────────────────────────
 {
   const { chrome } = boot({ settings: { sweep: true, sweepMin: 15, notify: true, theme: "auto", persistSessions: false } });
-  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "sessionKey=synthetic-abc"));
   await tick();
   assert.deepEqual(capsIn(chrome.storage.session), ["cap_claude-web"], "capture still kept in memory");
   assert.deepEqual(capsIn(chrome.storage.local), [], "NOTHING mirrored to disk when the toggle is off");
@@ -54,7 +54,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 3. turning persistSessions OFF purges the copies already on disk ────────────────────────────
 {
   const { chrome, sandbox } = boot();
-  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "sessionKey=synthetic-abc"));
   await tick();
   assert.equal(capsIn(chrome.storage.local).length, 1, "precondition: a copy is on disk");
   await sandbox.applySettings({ persistSessions: false });
@@ -65,7 +65,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // ── 4. "clear" removes the capture from BOTH stores ─────────────────────────────────────────────
 {
   const { chrome } = boot();
-  fireCapture(chrome, xhr("https://claude.ai/x", "session=abc"));
+  fireCapture(chrome, xhr("https://claude.ai/x", "sessionKey=synthetic-abc"));
   await tick();
   const onMessage = chrome._listeners.message[0];
   await new Promise((done) => onMessage({ action: "clear", providerKey: "claude-web" }, {}, done));
@@ -81,15 +81,16 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
       // OmniRoute knows claude-web; perplexity-web was deleted in the dashboard.
       readConnectionsInPage: () => ({ ok: true, connections: [{ provider: "claude-web", id: "c1", name: "Claude Web · acc", testStatus: "error" }] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true, id: "c1" }; },
-      // its ONLY connection is updated in place (PATCH), not duplicated by a fresh POST
+      // The browser's remembered slot is updated in place (PATCH), not duplicated by a fresh POST.
       updateConnInPage: (id) => { pushed.push("claude-web"); return { ok: true }; },
-      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+      gatewayProbeInPage: () => ({ ok: true, status: 200, state: "ready", authenticated: true, compatible: true }),
     },
   });
   // Disk survived a browser restart; session storage is empty (as it is on a cold start).
   await chrome.storage.local.set({
-    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "s=1", token: "", cookieCount: 1, at: Date.now(), accountId: "acc" },
-    "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "s=2", token: "", cookieCount: 1, at: Date.now(), accountId: "acc2" },
+    "slot_claude-web": { id: "c1", acc: "acc", stable: false },
+    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "sessionKey=synthetic-one", token: "", cookieCount: 1, at: Date.now(), accountId: "acc" },
+    "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "__Secure-next-auth.session-token=synthetic-two", token: "", cookieCount: 1, at: Date.now(), accountId: "acc2" },
   });
   await sandbox.restartRecovery();
   assert.deepEqual(
@@ -141,13 +142,14 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
         { provider: "perplexity-web", id: "c2", name: "Perplexity Web · b", testStatus: "error" },
       ] }),
       postProviderInPage: (slug) => { pushed.push(slug); return { ok: true }; },
-      updateConnInPage: (id) => { pushed.push(id === "c1" ? "claude-web" : id); return { ok: true }; }, // sole connection → updated in place
-      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+      updateConnInPage: (id) => { pushed.push(id === "c1" ? "claude-web" : id); return { ok: true }; }, // remembered slot → updated in place
+      gatewayProbeInPage: () => ({ ok: true, status: 200, state: "ready", authenticated: true, compatible: true }),
     },
   });
   const DAY = 24 * 60 * 60 * 1000;
   await chrome.storage.local.set({
-    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "fresh", token: "", at: Date.now() - 2 * DAY, accountId: "a" },
+    "slot_claude-web": { id: "c1", acc: "a", stable: false },
+    "cap_claude-web": { provider: "claude-web", slug: "claude-web", label: "Claude Web", cookie: "sessionKey=synthetic-fresh", token: "", at: Date.now() - 2 * DAY, accountId: "a" },
     "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: "corpse", token: "", at: Date.now() - 8 * DAY, accountId: "b" },
   });
   await sandbox.restartRecovery();
@@ -225,7 +227,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
 // "недоступен". A never-resolving fetch simulates the hang.
 {
   const { sandbox } = boot({
-    dash: { gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }) },
+    dash: { gatewayProbeInPage: () => ({ ok: true, status: 200, state: "ready", authenticated: true, compatible: true }) },
     fetch: () => new Promise(() => {}), // never resolves — the Firefox loopback hang
   });
   const r = await Promise.race([sandbox.pingGateway(), tick(600).then(() => "HUNG")]);
@@ -285,7 +287,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
       readConnectionsInPage: () => ({ ok: true, connections: conns }),
       updateConnInPage: (id, patch) => { patches.push(id + ":" + patch.isActive); const c = conns.find((x) => x.id === id); if (c) c.isActive = patch.isActive; return { ok: true }; },
       deleteConnInPage: (id) => { deletes.push(id); return { ok: true }; },
-      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+      gatewayProbeInPage: () => ({ ok: true, status: 200, state: "ready", authenticated: true, compatible: true }),
       fetchModelsInPage: () => ({ fetched: true, ok: true, models: [{ id: "cerebras/m" }] }),
       chatProbeInPage: () => (healthy ? { fetched: true, ok: true, status: 200, msg: "", text: "PONG" } : { fetched: true, ok: false, status: 402, msg: "credits exhausted" }),
     },
@@ -336,7 +338,7 @@ const capsIn = (store) => Object.keys(store._dump()).filter((k) => k.startsWith(
       readConnectionsInPage: () => ({ ok: true, connections: conns }),
       postProviderInPage: (slug, name) => { posts.push(name); conns.push({ provider: slug, id: "p-new", name, testStatus: "active" }); return { ok: true, id: "p-new" }; },
       updateConnInPage: (id) => { patches.push(id); return { ok: true }; },
-      gatewayProbeInPage: () => ({ ok: true, status: 401, ct: "application/json" }),
+      gatewayProbeInPage: () => ({ ok: true, status: 200, state: "ready", authenticated: true, compatible: true }),
     },
   });
   const cap = (c) => chrome.storage.session.set({ "cap_perplexity-web": { provider: "perplexity-web", slug: "perplexity-web", label: "Perplexity Web", cookie: c, token: "", cookieCount: 1, at: Date.now() } });

@@ -74,6 +74,18 @@
   "popup_addedProbing": {
     "message": "✓ Added$1 · checking for real…"
   },
+  "popup_batchDone": {
+    "message": "Saved: $1 of $2 · failed: $3"
+  },
+  "popup_batchUnknown": {
+    "message": "Import outcome unknown — check the connection list before retrying."
+  },
+  "popup_batchEntry": {
+    "message": "Entry $1: $2"
+  },
+  "popup_batchMore": {
+    "message": "$1 more failed entries"
+  },
   "popup_probingLive": {
     "message": "⏳ Checking for real…"
   },
@@ -111,7 +123,7 @@
     "message": "⚠ couldn't read the connections — open the dashboard and sign in"
   },
   "popup_footerLogin": {
-    "message": "Online · 127.0.0.1:20128 — sign in on the dashboard"
+    "message": "Online · 127.0.0.1:20128 — no connections yet"
   },
   "popup_srvDown": {
     "message": "127.0.0.1:20128 — unreachable"
@@ -378,7 +390,7 @@
     "message": "⏳ Importing…"
   },
   "oauth_zipDone": {
-    "message": "🟢 Imported: $1 account(s)"
+    "message": "Imported: $1 of $2 accounts · failed: $3"
   },
   "oauth_broken": {
     "message": "⚠ Unavailable — OmniRoute server error"
@@ -564,7 +576,10 @@
     "message": "Empty key"
   },
   "bg_noValidKeys": {
-    "message": "No valid keys (one per line, 8+ characters)"
+    "message": "Enter nonempty keys, one per line"
+  },
+  "bg_invalidResponse": {
+    "message": "OmniRoute returned an invalid result — the saved outcome could not be confirmed."
   },
   "bg_noData": {
     "message": "no data"

@@ -60,7 +60,15 @@ try {
   if (chrome.webRequest.OnBeforeSendHeadersOptions?.EXTRA_HEADERS) captureOpts.push("extraHeaders");
 } catch (e) { /* Firefox exposes them without the flag */ }
 
-const CAPTURE_URLS = OMNI_WEB.flatMap((p) => p.perms);
+const CAPTURE_URLS = [...new Set(OMNI_WEB.flatMap((p) => p.perms))];
+const captureWrites = new Map();
+// Serialize updates per provider so concurrent XHRs / a store scan cannot replace a newer capture.
+function queueCapture(key, fn) {
+  const task = (captureWrites.get(key) || Promise.resolve()).catch(() => {}).then(fn);
+  captureWrites.set(key, task);
+  task.finally(() => { if (captureWrites.get(key) === task) captureWrites.delete(key); }).catch(() => {});
+  return task;
+}
 
 chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
   const provider = OMNI_WEB.find((p) => p.hostRe.test(d.url));
@@ -68,37 +76,37 @@ chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
   const h = {};
   for (const x of (d.requestHeaders || [])) h[x.name.toLowerCase()] = x.value;
   const cookie = h["cookie"] || "";
-  if (!cookie) return; // wait for a request that actually carries the session
   const auth = h["authorization"] || "";
-  let token = /^bearer\s+\S/i.test(auth) ? auth.replace(/^bearer\s+/i, "").trim() : "";
+  const token = /^bearer\s+\S+\s*$/i.test(auth) ? auth.replace(/^bearer\s+/i, "").trim() : "";
+  if (!cookie && !token) return;
+  if (provider.cred.t === "token" && !token) return; // token-less traffic cannot refresh or replace a bearer session
   const capKey = "cap_" + provider.key;
-  capSeen[provider.key] = Date.now(); // a refresh run waits on this, even when the cookie didn't change
-  // Dedup: a busy page fires many XHR/s carrying the SAME cookie — only write (and repaint the badge)
-  // when the credential actually changed, else we storm session storage + a full scan on every request.
-  SEC.get(capKey).then((cur) => {
-    const prev = cur[capKey];
-    // Not every request of a site carries the Bearer (DeepSeek's static calls don't) — a request without
-    // one must not wipe the token an earlier request delivered.
-    if (!token && prev && prev.token) token = prev.token;
-    if (prev && prev.cookie === cookie && prev.token === token) { maybeAutoAdd(provider.key); return; }
-    // Analytics cookies change on nearly every request; only a change of the SESSION part is a new
-    // capture. Otherwise keep `at` (so a sent capture doesn't pop back into "ready to send" every few
-    // seconds) and just refresh the stored header, at most once a minute.
-    const sk = sessionKey(provider, cookie, token);
-    if (prev && sk && prev.sessKey === sk) {
-      if (Date.now() - (prev.seenAt || prev.at) > 60000) SEC.set({ [capKey]: { ...prev, cookie, seenAt: Date.now() } });
-      maybeAutoAdd(provider.key); return;
-    }
+  queueCapture(provider.key, async () => {
+    const dismissKey = "dismiss_" + provider.key;
+    const stored = await SEC.get([capKey, dismissKey]);
+    const prev = stored[capKey];
+    // Chrome omits cookieStoreId on webRequest, but its regular/private cookie stores are 0/1.
+    const storeId = d.cookieStoreId || (CAN_DIRECT_FETCH ? (d.incognito ? "1" : "0") : "");
+    // Firefox supplies cookieStoreId on requests. Do not borrow a bearer from another container,
+    // or attach it to a different cookie session after an account switch in the same container.
+    const sameStore = !!prev && (prev.storeId || "") === storeId;
+    const oldSession = prev && sessionKey(provider, prev.cookie, "");
+    const newSession = sessionKey(provider, cookie, "");
+    const sameSession = !!oldSession && oldSession === newSession;
+    const retainedToken = token || (sameStore && sameSession && prev.token) || "";
     const cap = {
       provider: provider.key, slug: provider.slug, label: provider.label,
-      cookie, token, cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now(), sessKey: sk,
+      cookie, token: retainedToken, storeId, cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now(),
+      // Requests don't expose partition keys. An identical session in the same store can retain
+      // its discovered context; a different session must not adopt that context's remembered slot.
+      cookieContext: sameStore && sameSession ? prev.cookieContext || "" : "",
     };
-    cap.accountId = omniAccountId(omniBuildCredential(provider, cap)); // compute once at capture, not per refresh
-    cap.email = omniAccountEmail(omniBuildCredential(provider, cap));
-    SEC.set({ [capKey]: cap }, () => { updateBadge(); maybeAutoAdd(provider.key); });
-    // Opt-in: mirror to disk so the capture survives a browser restart (restartRecovery re-pushes it).
-    getSettings().then((st) => { if (st.persistSessions) LOC.set({ [capKey]: cap }); });
-  });
+    if (!hasSession(provider, cap)) return;
+    capSeen[provider.key] = Date.now(); // a refresh waits on this even when storage is deduplicated
+    if (stored[dismissKey]) await SEC.remove(dismissKey);
+    await saveCapture(provider, cap, prev);
+    maybeAutoAdd(provider.key);
+  }).catch(() => {});
 }, { urls: CAPTURE_URLS, types: ["xmlhttprequest"] }, captureOpts);
 
 // When the user was sent to log in (wizard / "добить недостающих"), the popup is already closed by the
@@ -110,7 +118,7 @@ if (chrome.cookies && chrome.cookies.onChanged) chrome.cookies.onChanged.addList
   if (ch.removed || !ch.cookie) return;
   const dom = String(ch.cookie.domain || "").replace(/^\./, "");
   for (const p of OMNI_WEB) {
-    if (p.cred.t !== "cookie" || !(p.host === dom || p.host.endsWith("." + dom) || dom.endsWith(p.host))) continue;
+    if (p.cred.t !== "cookie" || !(p.host === dom || p.host.endsWith("." + dom) || dom.endsWith("." + p.host))) continue;
     LOC.get("autoadd_" + p.key).then(async (r) => {
       if (!r["autoadd_" + p.key]) return;
       await captureFromStore(p); // then the shared one-shot path checks the session and pushes
@@ -166,22 +174,24 @@ async function loginAgain(key) {
 function toast(message) {
   try { chrome.notifications.create("omni_" + Date.now(), { type: "basic", iconUrl: "icons/icon128.png", title: "OmniRoute Bridge", message }); } catch (e) { /* no notifications permission */ }
 }
-// Does a capture carry the provider's real SESSION credential? A logged-out site still sends analytics
-// cookies; pushing those unattended would mint a dead connection (new accountId → new name). Providers
-// whose catalog lists no named cookie (header/localStorage-only) need the Bearer token instead.
+// Does a capture carry a known session credential? Analytics alone are not a session, and only
+// providers configured for token credentials can use a captured Bearer as their session.
 // Session cookie names the generated catalog doesn't carry (its `sources` is empty for these).
 // Auth.js v5 renamed next-auth's cookie (next-auth.session-token → authjs.session-token); accept both.
 const SESSION_COOKIE_EXTRA = {
   huggingchat: ["hf-chat", "token"],
   "perplexity-web": ["__Secure-authjs.session-token", "next-auth.session-token"],
 };
-const sessionNames = (p) => p.sources.filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []);
-// The part of a credential that IS the session: named session cookies (incl. next-auth chunks) + token.
-// "" when the provider has no known session cookie → callers fall back to comparing the whole header.
+const sessionNames = (p) => [...new Set((p.sources || []).filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []))];
+// The session identity used to deduplicate captures; unknown credential formats return "".
 function sessionKey(p, cookie, token) {
+  if (p.cred && p.cred.t === "token") return token || "";
   const names = sessionNames(p);
-  if (!names.length) return token || "";
-  const parts = String(cookie || "").split(";").map((x) => x.trim()).filter((x) => names.some((n) => x.startsWith(n + "=") || x.startsWith(n + ".")));
+  if (!names.length) return "";
+  const parts = String(cookie || "").split(";").map((x) => x.trim()).filter((x) => {
+    const name = x.slice(0, x.indexOf("="));
+    return names.some((n) => name === n || (name.startsWith(n + ".") && /^\d+$/.test(name.slice(n.length + 1))));
+  });
   return parts.length ? parts.sort().join("; ") + "|" + (token || "") : "";
 }
 // Why no session: which cookies WERE there (names only — values are secrets) vs which one is needed.
@@ -192,10 +202,10 @@ function missingSessionDetail(p, cap) {
   return t("bg_noSessionNames", [want.join(" / ") || (p.cred.t === "token" ? "Bearer" : "?"), have.slice(0, 14).join(", ") + (have.length > 14 ? " …" : "") || "—"]);
 }
 function hasSession(p, cap) {
-  if (!cap) return false;
-  if (p.cred && p.cred.t === "token" && cap.token) return true; // DeepSeek: the Bearer token IS the session
+  if (!p || !cap) return false;
+  if (p.cred && p.cred.t === "token") return typeof cap.token === "string" && !!cap.token.trim();
   const names = sessionNames(p);
-  if (!names.length) return !!cap.token;
+  if (!names.length) return false; // no known source format: do not claim a usable session
   const have = new Set(String(cap.cookie || "").split(";").map((x) => x.trim()).filter((x) => /=./.test(x)).map((x) => x.slice(0, x.indexOf("="))));
   // next-auth (Perplexity) splits a big session cookie into "<name>.0", "<name>.1", …
   return names.some((n) => have.has(n) || have.has(n + ".0"));
@@ -208,41 +218,126 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // A cookie the browser still sends can belong to a dead session, so the verdict is the probe, not the
 // capture. Sequential on purpose: parallel chat probes have wedged the local server before.
 const REFRESH_WAIT_MS = 15000;
-// The Cookie header the browser would send to the provider's site — straight from the cookie store,
-// HttpOnly included (needs the "cookies" permission + host access). No tab, no waiting for an XHR.
-async function cookieHeaderFor(p) {
-  if (!chrome.cookies) return "";
-  // Read from the cookie store the site is ACTUALLY open in: in Firefox a tab may live in a container
-  // (cookieStoreId ≠ default), and with first-party isolation / partitioning a bare getAll({url}) misses
-  // the session (seen 2026-11-03: Perplexity logged in, store read returned no session cookie).
-  const stores = new Set([undefined]);
-  try { for (const tb of await chrome.tabs.query({})) if (tb.url && p.hostRe.test(tb.url) && tb.cookieStoreId) stores.add(tb.cookieStoreId); } catch (e) { /* tabs unavailable */ }
-  const seen = new Map();
-  for (const url of [p.site, p.loginUrl].filter(Boolean)) {
-    for (const storeId of stores) {
-      const base = storeId ? { url, storeId } : { url };
-      // firstPartyDomain/partitionKey are Firefox/Chrome extras; an engine that rejects one gets the plain query.
-      for (const q of [{ ...base, firstPartyDomain: null, partitionKey: {} }, { ...base, partitionKey: {} }, base]) {
-        try { for (const c of await chrome.cookies.getAll(q)) if (!seen.has(c.name)) seen.set(c.name, c.value); break; } catch (e) { /* option unsupported → next form */ }
-      }
+const COOKIE_SCAN_MS = 4000, COOKIE_QUERY_MS = 800, COOKIE_SCAN_WORKERS = 4, COOKIE_SCAN_STORES = 8;
+const storeCaptures = new Map();
+let discovery = null;
+let discoveredAt = 0;
+async function captureTabs() {
+  try { return await withTimeout(chrome.tabs.query({}), COOKIE_QUERY_MS, []); } catch { return []; }
+}
+function cookieQuery(q, scan) {
+  const key = JSON.stringify(q);
+  if (!scan.queries.has(key)) {
+    scan.queries.set(key, (async () => {
+      const left = scan.until - Date.now();
+      if (left <= 0) return null;
+      try { return await withTimeout(chrome.cookies.getAll(q), Math.min(COOKIE_QUERY_MS, left), null); } catch { return false; }
+    })());
+  }
+  return scan.queries.get(key);
+}
+// One URL + store + first-party/partition bucket is one candidate. In particular, never join
+// next-auth chunks from different containers, partitions, or login/site URL paths.
+async function cookieCandidateFor(p, scan) {
+  if (!chrome.cookies || p.cred.t !== "cookie" || !sessionNames(p).length) return null;
+  const tabs = scan.tabs.filter((tb) => tb.url && p.hostRe.test(tb.url)).sort((a, b) => Number(!!b.active) - Number(!!a.active));
+  const stores = [...new Set([...tabs.map((tb) => tb.cookieStoreId).filter(Boolean), undefined])].slice(0, COOKIE_SCAN_STORES);
+  for (const storeId of stores) for (const url of [...new Set([p.site, p.loginUrl].filter(Boolean))]) {
+    if (Date.now() >= scan.until) return null;
+    const base = storeId ? { url, storeId } : { url };
+    let list = null;
+    for (const q of [{ ...base, firstPartyDomain: null, partitionKey: {} }, { ...base, partitionKey: {} }, base]) {
+      list = await cookieQuery(q, scan);
+      if (list !== false) break; // retry only unsupported options, not a timeout or an empty result
+    }
+    if (!Array.isArray(list)) continue;
+    const groups = new Map();
+    for (const c of list) {
+      if (typeof c.name !== "string" || typeof c.value !== "string") continue;
+      const sid = c.storeId || storeId || "";
+      if (storeId && sid !== storeId) continue;
+      const partition = c.partitionKey || {};
+      const context = c.firstPartyDomain || partition.topLevelSite
+        ? JSON.stringify([sid, c.firstPartyDomain || "", partition.topLevelSite || "", partition.hasCrossSiteAncestor ?? null]) : "";
+      const groupKey = JSON.stringify([sid, context]);
+      if (!groups.has(groupKey)) groups.set(groupKey, { storeId: sid, cookieContext: context, cookies: new Map() });
+      // getAll sorts the longest path first, just like a Cookie header's effective value.
+      const group = groups.get(groupKey);
+      if (!group.cookies.has(c.name)) group.cookies.set(c.name, c.value);
+    }
+    for (const group of groups.values()) {
+      const cookie = [...group.cookies].map(([n, v]) => n + "=" + v).join("; ");
+      if (hasSession(p, { cookie })) return { cookie, storeId: group.storeId, cookieContext: group.cookieContext };
     }
   }
-  return [...seen].map(([n, v]) => n + "=" + v).join("; ");
+  return null;
 }
-// Fresh capture from the cookie store — but never REPLACE a capture that has a session with one that
-// doesn't (the store can legitimately lack what the page sends, see above). Returns the usable capture.
-async function captureFromStore(p) {
-  const { ["cap_" + p.key]: prev } = await SEC.get("cap_" + p.key);
-  const cookie = await cookieHeaderFor(p);
-  const cap = cookie ? { provider: p.key, slug: p.slug, label: p.label, cookie, token: (prev && prev.token) || "", cookieCount: cookie.split(";").filter(Boolean).length, at: Date.now() } : null;
-  if (!cap || !hasSession(p, cap)) return prev && hasSession(p, prev) ? prev : cap;
-  cap.accountId = omniAccountId(omniBuildCredential(p, cap));
-  cap.email = omniAccountEmail(omniBuildCredential(p, cap));
-  cap.sessKey = sessionKey(p, cookie, cap.token);
-  if (prev && prev.sessKey && prev.sessKey === cap.sessKey) cap.at = prev.at; // same session — not a "new" capture
+async function cookieHeaderFor(p) {
+  const scan = { tabs: await captureTabs(), queries: new Map(), until: Date.now() + COOKIE_SCAN_MS };
+  return (await cookieCandidateFor(p, scan))?.cookie || "";
+}
+async function saveCapture(p, cap, prev) {
+  const sk = sessionKey(p, cap.cookie, cap.token);
+  const same = prev && (prev.storeId || "") === (cap.storeId || "") && (prev.cookieContext || "") === (cap.cookieContext || "") && sk && (prev.sessKey || sessionKey(p, prev.cookie, prev.token)) === sk;
+  if (same && (prev.cookie === cap.cookie || Date.now() - (prev.seenAt || prev.at) < 60000)) return prev;
+  if (same) { cap.at = prev.at; cap.seenAt = Date.now(); }
+  cap.sessKey = sk;
+  const credential = omniBuildCredential(p, cap);
+  cap.accountId = omniAccountId(credential);
+  cap.email = omniAccountEmail(credential);
   await SEC.set({ ["cap_" + p.key]: cap });
-  const st = await getSettings(); if (st.persistSessions) await LOC.set({ ["cap_" + p.key]: cap });
+  const st = await getSettings();
+  if (st.persistSessions) await LOC.set({ ["cap_" + p.key]: cap });
+  updateBadge();
   return cap;
+}
+function captureFromStore(p, scan, passive = false) {
+  if (storeCaptures.has(p.key)) return storeCaptures.get(p.key);
+  const task = (async () => {
+    const context = scan || { tabs: await captureTabs(), queries: new Map(), until: Date.now() + COOKIE_SCAN_MS };
+    const candidate = await cookieCandidateFor(p, context);
+    return queueCapture(p.key, async () => {
+      const key = "cap_" + p.key, dismiss = "dismiss_" + p.key;
+      const stored = await SEC.get([key, dismiss]);
+      const prev = stored[key];
+      if (passive && stored[dismiss]) return prev || null;
+      // Passive discovery fills missing captures; an XHR may have delivered a newer one mid-scan.
+      if ((passive && hasSession(p, prev)) || !candidate) return prev || null;
+      const cap = { provider: p.key, slug: p.slug, label: p.label, ...candidate, token: "", cookieCount: candidate.cookie.split(";").filter(Boolean).length, at: Date.now() };
+      return saveCapture(p, cap, prev);
+    });
+  })();
+  storeCaptures.set(p.key, task);
+  task.finally(() => { if (storeCaptures.get(p.key) === task) storeCaptures.delete(p.key); }).catch(() => {});
+  return task;
+}
+function discoverSessions() {
+  if (discovery) return discovery;
+  if (discoveredAt && Date.now() - discoveredAt < 15000) return Promise.resolve();
+  discovery = (async () => {
+    const all = await SEC.get(OMNI_WEB.flatMap((p) => ["cap_" + p.key, "dismiss_" + p.key]));
+    const providers = OMNI_WEB.filter((p) => p.cred.t === "cookie" && sessionNames(p).length && !all["dismiss_" + p.key] && !hasSession(p, all["cap_" + p.key]));
+    if (!providers.length || !chrome.cookies) return;
+    const scan = { tabs: await captureTabs(), queries: new Map(), until: Date.now() + COOKIE_SCAN_MS };
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(COOKIE_SCAN_WORKERS, providers.length) }, async () => {
+      while (i < providers.length && Date.now() < scan.until) {
+        const p = providers[i++];
+        try { await captureFromStore(p, scan, true); } catch { /* missing host access must not stop other providers */ }
+      }
+    }));
+  })().finally(() => { discovery = null; discoveredAt = Date.now(); });
+  return discovery;
+}
+async function getCaptures(discover) {
+  if (discover) await discoverSessions();
+  const all = await SEC.get(OMNI_WEB.map((p) => "cap_" + p.key));
+  const caps = {};
+  for (const p of OMNI_WEB) {
+    const c = all["cap_" + p.key];
+    caps[p.key] = hasSession(p, c) ? { provider: c.provider, slug: c.slug, label: c.label, cookieCount: c.cookieCount, at: c.at, email: c.email || "", accountId: c.accountId || omniAccountId(omniBuildCredential(p, c)) } : null;
+  }
+  return { caps };
 }
 // A probe's "dead" is only a login problem on 401/403; a 400/404/5xx is the provider or OmniRoute failing.
 const probeState = (pr) => pr.alive === true ? "ok" : pr.alive === false && (pr.status === 401 || pr.status === 403) ? "needLogin" : pr.alive === false ? "error" : "unknown";
@@ -376,21 +471,12 @@ updateBadge();
 chrome.runtime.onMessage.addListener((req, sender, send) => {
   switch (req.action) {
     case "getAll":
-      SEC.get(null).then((all) => {
-        const caps = {};
-        for (const p of OMNI_WEB) {
-          const c = all["cap_" + p.key];
-          // slim (no raw cookie/token leaves the SW) + the account id used to build the connection name,
-          // so the popup can predict "update vs new" without seeing the credential.
-          caps[p.key] = c ? { provider: c.provider, slug: c.slug, label: c.label, cookieCount: c.cookieCount, at: c.at, email: c.email || "", accountId: c.accountId || omniAccountId(omniBuildCredential(p, c)) } : null;
-        }
-        send({ caps });
-      });
+      getCaptures(!!req.discover).then(send).catch(() => send({ caps: {}, error: t("bg_noData") }));
       return true;
     case "send": sendToOmni(req.providerKey, req.name, !!req.forceNew).then(async (r) => { if (r && r.ok) await LOC.set({ ["sent_" + req.providerKey]: Date.now() }); send(r); }); return true;
     case "slotFor": slotFor(req.providerKey).then(send); return true;
     case "addApiKey": sendApiKeyToOmni(req.slug, req.name, req.apiKey, req.psd).then(send); return true;
-    case "bulkAddApiKey": bulkAddApiKeys(req.slug, req.keys).then(send); return true;
+    case "bulkAddApiKey": bulkAddApiKeys(req.slug, req.keys, req.psd).then(send); return true;
     case "probe": realProbe(req.slug).then(send); return true;
     case "probeAll": probeAll(req.slugs || []).then(send); return true;
     case "connections": readConnections().then(send); return true;
@@ -406,7 +492,11 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
         send({ probes });
       });
       return true;
-    case "clear": Promise.all([SEC.remove("cap_" + req.providerKey), LOC.remove("cap_" + req.providerKey)]).then(() => { updateBadge(); send({ ok: true }); }); return true;
+    case "clear": queueCapture(req.providerKey, async () => {
+      await SEC.set({ ["dismiss_" + req.providerKey]: true });
+      await Promise.all([SEC.remove("cap_" + req.providerKey), LOC.remove("cap_" + req.providerKey)]);
+      updateBadge(); send({ ok: true });
+    }).catch(() => send({ ok: false })); return true;
     case "aistudioKey":
       if (req.key) SEC.set({ apikey_aistudio: { key: req.key, at: Date.now() } });
       send?.({ ok: true }); return true;
@@ -476,7 +566,9 @@ async function getDashboardTab() {
 }
 
 function withTimeout(promise, ms, onTimeout) {
-  return Promise.race([promise, new Promise((res) => setTimeout(() => res(onTimeout), ms))]);
+  let timer;
+  return Promise.race([promise, new Promise((res) => { timer = setTimeout(() => res(onTimeout), ms); })])
+    .finally(() => clearTimeout(timer));
 }
 
 async function injectOnce(tab, func, args) {
@@ -489,57 +581,80 @@ async function injectOnce(tab, func, args) {
 // fails against a dead/error dashboard tab, reloads it once and retries (a tab opened while the
 // server was down otherwise stays a chrome-error page and every later injection keeps failing).
 async function runInDash(func, args, timeout = INJECT_TIMEOUT) {
+  const deadline = Date.now() + timeout;
+  const left = () => Math.max(0, deadline - Date.now());
+  const timeoutVal = { ok: false, state: "timeout", error: t("bg_timeout") };
   let tab;
-  try { tab = await getDashboardTab(); } catch (e) { return { ok: false, error: t("bg_tabOpenFail", [String(e).slice(0, 80)]) }; }
+  try { tab = await withTimeout(getDashboardTab(), left(), null); } catch (e) { return { ok: false, error: t("bg_tabOpenFail", [String(e).slice(0, 80)]) }; }
+  if (!left()) return timeoutVal;
   if (!tab) return { ok: false, error: t("bg_tabOpenFail2") };
   const attempt = () => injectOnce(tab, func, args).catch((e) => ({ ok: false, __injectErr: true, error: t("bg_injectFail", [String(e).slice(0, 100)]) }));
-  const timeoutVal = { ok: false, error: t("bg_timeout") };
-  let r = await withTimeout(attempt(), timeout, timeoutVal);
+  let r = await withTimeout(attempt(), left(), timeoutVal);
   if (r && r.__injectErr) {
-    try { await chrome.tabs.reload(tab.id); await new Promise((res) => setTimeout(res, 1500)); } catch { /* tab gone */ }
-    r = await withTimeout(attempt(), timeout, timeoutVal);
+    try { await withTimeout(chrome.tabs.reload(tab.id).then(() => sleep(1500)), left(), null); } catch { /* tab gone */ }
+    if (!left()) return timeoutVal;
+    r = await withTimeout(attempt(), left(), timeoutVal);
   }
   if (r && r.__injectErr) delete r.__injectErr;
   return r;
 }
 
-// ── gateway identity guard (don't hand credentials to a rogue :20128) ────────
-function gatewayProbeInPage() {
-  return fetch("/api/providers", { credentials: "include" })
-    .then((r) => ({ ok: true, status: r.status, ct: r.headers.get("content-type") || "" }))
-    .catch((e) => ({ ok: false, error: String(e).slice(0, 80) }));
+// Compatibility/authentication check, not proof of server identity. Recheck before each write.
+function gatewayProbeInPage(url = "/api/providers", timeout = 4000) {
+  const ctrl = new AbortController();
+  let timer;
+  const result = (state, status = 0) => ({ ok: state === "ready", authenticated: state === "ready", compatible: state === "ready", state, status });
+  // The deadline covers headers AND JSON parsing, even if a stalled body ignores abort.
+  const request = (async () => {
+    try {
+      const r = await fetch(url, { credentials: "include", cache: "no-store", redirect: "manual", signal: ctrl.signal });
+      if (r.status === 401 || r.status === 403) return result("unauthenticated", r.status);
+      if (r.status >= 500 || r.status === 408 || r.status === 429) return result("unavailable", r.status);
+      if (r.status !== 200 || r.redirected || !/^application\/json(?:\s*;|$)/i.test(r.headers.get("content-type") || "")) return result("incompatible", r.status);
+      const d = await r.json().catch(() => null);
+      const valid = d && typeof d === "object" && !Array.isArray(d) && !("error" in d) && Array.isArray(d.connections)
+        && d.connections.every((c) => c && typeof c.id === "string" && c.id.trim() && typeof c.provider === "string" && c.provider.trim())
+        && (d.total === undefined || (Number.isSafeInteger(d.total) && d.total >= d.connections.length));
+      return result(valid ? "ready" : "incompatible", r.status);
+    } catch { return result(ctrl.signal.aborted ? "timeout" : "unreachable"); }
+  })();
+  const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve(result("timeout")); }, timeout); });
+  return Promise.race([request, expired]).finally(() => clearTimeout(timer));
 }
-let gatewayOk = false; // cache only a POSITIVE result — a transient failure must not block sends
-// for the rest of the SW lifetime; re-probe until it verifies once.
-async function ensureGateway() {
-  if (gatewayOk) return true;
-  const r = await runInDash(gatewayProbeInPage);
-  // 401/403 = it IS OmniRoute, just not logged in (the POST then returns the proper "нужен логин").
-  // A json 200 with the providers endpoint present is the positive identity signal.
-  gatewayOk = !!(r && r.ok === true && (r.status === 401 || r.status === 403 || (r.status === 200 && String(r.ct).includes("application/json"))));
-  return gatewayOk;
+function gatewayResult(r) {
+  const ready = r && r.ok === true && r.authenticated === true && r.compatible === true && r.status === 200 && r.state === "ready";
+  const state = ready ? "ready" : r && r.state && r.state !== "ready" ? r.state : r && r.ok ? "incompatible" : "unreachable";
+  const detail = ready ? "" : state === "unauthenticated" ? t("bg_needLogin") : state === "incompatible" ? t("bg_notOmni")
+    : state === "timeout" ? t("bg_timeout") : (r && r.error) || (r && r.status ? "HTTP " + r.status : t("bg_noAnswer"));
+  return { ok: !!ready, authenticated: !!ready, compatible: !!ready, state, status: (r && r.status) || 0, detail };
 }
+let gatewayChecking = null; // share only an in-flight dashboard check, never a cached authorization
+function checkDashboardGateway() {
+  if (!gatewayChecking) gatewayChecking = runInDash(gatewayProbeInPage, [], 10000)
+    .then(gatewayResult).finally(() => { gatewayChecking = null; });
+  return gatewayChecking;
+}
+async function ensureGateway() { return (await checkDashboardGateway()).ok; }
 // Guard for every credential-writing path: returns an error object to bail with, or null if OK.
 async function requireGateway() {
-  return (await ensureGateway()) ? null : { ok: false, error: t("bg_notOmni") };
+  const r = await checkDashboardGateway();
+  return r.ok ? null : { ...r, error: r.detail };
 }
 // Reachability for the popup status dot: direct fetch first (Chrome — no tab), fall back to the dashboard
 // tab (Firefox blocks a direct http fetch from the extension's secure context to the http loopback).
 async function pingGateway() {
   if (CAN_DIRECT_FETCH) {
-    // Chrome: a direct fetch is fine and needs no tab. On any error, fall through to the tab path.
-    try { if (await fetch(OMNI_BASE + "/api/providers", { method: "GET" })) return { ok: true }; } catch {}
+    const r = gatewayResult(await gatewayProbeInPage(OMNI_BASE + "/api/providers"));
+    // SameSite may omit the dashboard session from a SW request. Only that/network failure
+    // needs the authenticated tab fallback; a timeout or incompatible response is already decisive.
+    if (r.state !== "unauthenticated" && r.state !== "unreachable") return r;
   }
-  const r = await runInDash(gatewayProbeInPage); // Firefox (and Chrome-fallback): via the dashboard tab
-  if (r && r.ok === true) return { ok: true };
-  // Surface WHY: runInDash already localises the failure (tab open / injection / timeout / empty result).
-  // The popup shows this instead of a bare "недоступен", so the real cause is visible without devtools.
-  return { ok: false, detail: (r && (r.error || (r.status ? "HTTP " + r.status : null))) || t("bg_noAnswer") };
+  return checkDashboardGateway();
 }
 
 // POST /api/providers (create only — NO lying auto-test; the popup probes for real separately).
 // psd = optional providerSpecificData (e.g. { cx } for google-pse-search, { baseUrl } to override endpoint).
-function postProviderInPage(slug, name, apiKey, authType, psd, loginErr) {
+function postProviderInPage(slug, name, apiKey, authType, psd, loginErr, invalidErr = "Invalid provider response") {
   const body = { provider: slug, authType, name, apiKey };
   if (psd && Object.keys(psd).length) body.providerSpecificData = psd;
   return fetch("/api/providers", {
@@ -549,15 +664,16 @@ function postProviderInPage(slug, name, apiKey, authType, psd, loginErr) {
     const text = await r.text();
     if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
     let p = {}; try { p = JSON.parse(text); } catch (x) {}
-    if (r.status !== 201 && r.status !== 200) return { ok: false, error: typeof p.error === "string" ? p.error : "HTTP " + r.status };
-    return { ok: true, id: p.connection && p.connection.id };
+    if (r.status !== 201 && r.status !== 200) return { ok: false, error: typeof p?.error === "string" ? p.error : "HTTP " + r.status };
+    if (!p || p.error || typeof p.connection?.id !== "string" || !p.connection.id.trim()) return { ok: false, error: typeof p?.error === "string" ? p.error : invalidErr };
+    return { ok: true, id: p.connection.id };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
 
 // Shared add tail: name = "<base> · <stable per-credential id>" so OmniRoute's UPSERT-by-name treats
 // "same key re-added" as an update, but two DIFFERENT keys under one custom name stay separate.
 async function postApiKey(slug, base, apiKey, psd) {
-  const r = await runInDash(postProviderInPage, [slug, base + " · " + omniAccountId(apiKey), apiKey, "apikey", psd || null, t("bg_needLogin")]);
+  const r = await runInDash(postProviderInPage, [slug, base + " · " + omniAccountId(apiKey), apiKey, "apikey", psd || null, t("bg_needLogin"), t("bg_invalidResponse")]);
   return { ...r, slug };
 }
 
@@ -566,8 +682,7 @@ async function postApiKey(slug, base, apiKey, psd) {
 // credential — and a refreshed cookie is never identical. So every re-send used to mint a duplicate row
 // (45 → 52 on 2026-11-03). The answer, in order of certainty:
 //   1. the credential carries a real account id (JWT) → the connection named "… · <that id>";
-//   2. the connection this browser wrote last time (slot_<key>, remembered by id);
-//   3. the provider's ONLY connection.
+//   2. the connection this browser wrote last time in the same cookie store/context (remembered by id).
 // Otherwise null → create a new one (never overwrite a connection that may be another account's).
 async function resolveSlot(provider, cap) {
   const cred = omniBuildCredential(provider, cap);
@@ -582,17 +697,12 @@ async function resolveSlot(provider, cap) {
   }
   const sk = "slot_" + provider.key;
   const { [sk]: slot } = await LOC.get(sk);
-  if (slot && !(stable && slot.acc && slot.stable && slot.acc !== acc)) {
+  if (slot && (slot.storeId || "") === (cap.storeId || "") && (slot.cookieContext || "") === (cap.cookieContext || "")
+    && !(stable && slot.acc && slot.stable && slot.acc !== acc)) {
     const c = mine.find((x) => x.id === slot.id);
     if (c) return { conn: c, acc, stable };
   }
-  if (mine.length === 1 && !stable) return { conn: mine[0], acc, stable };
-  // No slot yet (first run of this version): the connection this extension created most recently (last
-  // 7 days) is the one this browser has been feeding — adopt it instead of minting yet another row.
-  const recent = mine
-    .filter((c) => c.createdAt && Date.now() - Date.parse(c.createdAt) < 7 * 24 * 60 * 60 * 1000 && c.name.startsWith(provider.label + " · "))
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-  if (recent && !stable) return { conn: recent, acc, stable };
+  // A sole connection or a recent matching label can still belong to another account/browser.
   return { conn: null, acc, stable };
 }
 async function sendToOmni(providerKey, name, forceNew = false) {
@@ -602,6 +712,7 @@ async function sendToOmni(providerKey, name, forceNew = false) {
   const stored = await SEC.get("cap_" + providerKey);
   const cap = stored["cap_" + providerKey];
   if (!cap) return { ok: false, error: t("bg_noCapture") };
+  if (!hasSession(provider, cap)) return { ok: false, error: missingSessionDetail(provider, cap) };
   const apiKey = omniBuildCredential(provider, cap);
   if (!apiKey) return { ok: false, error: t("bg_noCreds") };
   const slot = forceNew ? { conn: null } : await resolveSlot(provider, cap);
@@ -614,7 +725,7 @@ async function sendToOmni(providerKey, name, forceNew = false) {
     r = await postApiKey(provider.slug, (name && name.trim()) ? name.trim() : provider.label, apiKey);
     r = { ...r, connName: ((name && name.trim()) || provider.label) + " · " + omniAccountId(apiKey), updated: false };
   }
-  if (r.ok && r.id) await LOC.set({ ["slot_" + provider.key]: { id: r.id, acc: slot.acc || cap.accountId, stable: !!slot.stable, at: Date.now() } });
+  if (r.ok && r.id) await LOC.set({ ["slot_" + provider.key]: { id: r.id, acc: slot.acc || cap.accountId, stable: !!slot.stable, storeId: cap.storeId || "", cookieContext: cap.cookieContext || "", at: Date.now() } });
   return r;
 }
 async function slotFor(providerKey) {
@@ -634,35 +745,64 @@ async function sendApiKeyToOmni(slug, name, apiKey, psd) {
 }
 
 // Bulk add: several API keys of ONE provider at once (dashboard's bulkCreateProviderSchema).
-function bulkApiKeyInPage(slug, entries, loginErr) {
+function bulkApiKeyInPage(slug, entries, loginErr, invalidErr = "Invalid batch response", psd) {
+  const unknown = (error) => ({ ok: false, batch: true, partial: false, added: null, failed: null, total: entries.length, errors: [], error });
+  const body = { provider: slug, entries };
+  if (psd && Object.keys(psd).length) body.providerSpecificData = psd;
   return fetch("/api/providers/bulk", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ provider: slug, entries }),
+    body: JSON.stringify(body),
   }).then(async (r) => {
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
-    if ((r.ok || r.status === 201) && !(d && d.error)) return { ok: true, added: entries.length };
-    return { ok: false, error: (d && d.error) || "HTTP " + r.status };
-  }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
+    if (r.status === 401 || r.status === 403) return unknown(loginErr);
+    const d = await r.json().catch(() => null);
+    if (!r.ok) return unknown(typeof d?.error === "string" ? d.error : "HTTP " + r.status);
+    // Both bulk APIs return 200 even when EVERY entry failed. Cross-check the counters and
+    // per-entry evidence; a missing/contradictory response leaves the write outcome unknown.
+    const valid = d && !d.error && [d.success, d.failed, d.total].every((n) => Number.isSafeInteger(n) && n >= 0)
+      && d.total === entries.length && d.success + d.failed === d.total
+      && Array.isArray(d.created) && d.created.length === d.success && d.created.every((c) => c && typeof c.id === "string" && c.id.trim())
+      && Array.isArray(d.errors) && d.errors.length === d.failed
+      && d.errors.every((e) => e && Number.isInteger(e.index) && e.index >= 0 && e.index < d.total && typeof e.message === "string")
+      && new Set(d.errors.map((e) => e.index)).size === d.failed;
+    if (!valid) return unknown(invalidErr);
+    const errors = d.errors.map((e) => ({ index: e.index, message: e.message.slice(0, 240) }));
+    return { ok: d.success > 0 && d.failed === 0, batch: true, partial: d.success > 0 && d.failed > 0, added: d.success, failed: d.failed, total: d.total, errors };
+  }).catch(() => unknown(invalidErr));
 }
-async function bulkAddApiKeys(slug, keys) {
+async function bulkAddApiKeys(slug, keys, psd) {
   if (!slug) return { ok: false, error: t("bg_noProvider") };
-  const clean = (keys || []).map((k) => (k || "").trim()).filter((k) => k.length >= 8);
+  if (!Array.isArray(keys) || keys.some((k) => typeof k !== "string")) return { ok: false, error: t("bg_noValidKeys") };
+  const clean = keys.map((k) => k.trim()).filter(Boolean);
   if (!clean.length) return { ok: false, error: t("bg_noValidKeys") };
   const gw = await requireGateway(); if (gw) return gw;
-  // Each key gets a stable per-credential name+id (mirrors single-add) so re-adds UPSERT, not duplicate.
-  const entries = clean.map((k) => ({ name: slug + " · " + omniAccountId(k), apiKey: k, accountId: omniAccountId(k) }));
-  const r = await runInDash(bulkApiKeyInPage, [slug, entries, t("bg_needLogin")]);
-  return { ...r, slug };
+  // accountId is upstream routing configuration (e.g. Cloudflare), not a hash of the API key.
+  const entries = clean.map((k) => ({ name: slug + " · " + omniAccountId(k), apiKey: k, ...(typeof psd?.accountId === "string" && psd.accountId.trim() ? { accountId: psd.accountId.trim() } : {}) }));
+  const r = await runInDash(bulkApiKeyInPage, [slug, entries, t("bg_needLogin"), t("bg_invalidResponse"), psd || null]);
+  return { batch: true, added: null, failed: null, total: entries.length, errors: [], ...r, slug };
 }
 
 // ── live connections (what's actually in OmniRoute right now) ────────────────
 // Distinguish "unreachable" (couldn't read) from "genuinely empty" — a down gateway must NOT look
 // like "0 connections" (that inverts the honest-signal premise this extension is built on).
 function readConnectionsInPage() {
-  return fetch("/api/providers", { credentials: "include" })
-    .then((r) => (r.ok ? r.json().then((d) => ({ ok: true, connections: d.connections || [] })) : { ok: false, error: "HTTP " + r.status }))
-    .catch((e) => ({ ok: false, error: String(e).slice(0, 100) }));
+  const ctrl = new AbortController();
+  let timer;
+  const request = (async () => {
+    try {
+      const r = await fetch("/api/providers", { credentials: "include", cache: "no-store", redirect: "manual", signal: ctrl.signal });
+      if (r.status !== 200) return { ok: false, error: "HTTP " + r.status };
+      if (r.redirected || !/^application\/json(?:\s*;|$)/i.test(r.headers.get("content-type") || "")) return { ok: false };
+      const d = await r.json().catch(() => null);
+      if (!d || Array.isArray(d) || d.error || !Array.isArray(d.connections)
+        || !d.connections.every((c) => c && typeof c.id === "string" && c.id.trim() && typeof c.provider === "string" && c.provider.trim())
+        || (d.total !== undefined && (!Number.isSafeInteger(d.total) || d.total < d.connections.length))) return { ok: false };
+      // Only the roster fields used by the extension cross back to the worker. The server may
+      // be configured to reveal API keys in its response; they are not needed here.
+      return { ok: true, connections: d.connections.map((c) => ({ id: c.id, provider: c.provider, name: typeof c.name === "string" ? c.name : "", testStatus: c.testStatus, errorCode: !!c.errorCode, isActive: c.isActive, createdAt: c.createdAt })) };
+    } catch { return { ok: false }; }
+  })();
+  const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve({ ok: false, state: "timeout" }); }, 4000); });
+  return Promise.race([request, expired]).finally(() => clearTimeout(timer));
 }
 async function readConnections() {
   const res = await runInDash(readConnectionsInPage); // runInDash already reloads a dead tab + retries internally
@@ -717,20 +857,27 @@ async function updateConn(id, patch) {
 let _modelsCache = null; // { at, models } — /v1/models rarely changes; a short TTL collapses back-to-back probes' refetches
 // Fetch /v1/models FROM the dashboard tab, not a direct SW fetch: Firefox blocks a direct http fetch
 // from the extension's secure context to the http loopback (mixed content). The tab is http→http.
-function fetchModelsInPage() {
-  return fetch("/v1/models")
-    .then((r) => (r.ok ? r.json().then((d) => ({ fetched: true, ok: true, models: d.data || [] })) : { fetched: true, ok: false }))
-    .catch(() => ({ fetched: true, ok: false }));
+function fetchModelsInPage(url = "/v1/models") {
+  const ctrl = new AbortController();
+  let timer;
+  const request = (async () => {
+    try {
+      const r = await fetch(url, { cache: "no-store", redirect: "manual", signal: ctrl.signal });
+      if (!r.ok || r.redirected || !/^application\/json(?:\s*;|$)/i.test(r.headers.get("content-type") || "")) return { fetched: true, ok: false };
+      const d = await r.json().catch(() => null);
+      if (!d || d.error || !Array.isArray(d.data) || !d.data.every((m) => m && typeof m.id === "string" && m.id.trim())) return { fetched: true, ok: false };
+      return { fetched: true, ok: true, models: d.data.map((m) => ({ id: m.id, owned_by: typeof m.owned_by === "string" ? m.owned_by : "" })) };
+    } catch { return { fetched: true, ok: false, netErr: !ctrl.signal.aborted }; }
+  })();
+  const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve({ fetched: true, ok: false, state: "timeout" }); }, 4000); });
+  return Promise.race([request, expired]).finally(() => clearTimeout(timer));
 }
 async function fetchModels() {
   if (_modelsCache && Date.now() - _modelsCache.at < 45000) return { ok: true, models: _modelsCache.models };
   if (CAN_DIRECT_FETCH) {
-    // Chrome: direct, no tab. A non-ok response is a real answer (don't tab-retry); only a throw falls through.
-    try {
-      const mr = await fetch(OMNI_BASE + "/v1/models");
-      if (mr.ok) { const models = (await mr.json()).data || []; _modelsCache = { at: Date.now(), models }; return { ok: true, models }; }
-      return { ok: false };
-    } catch {}
+    const r = await fetchModelsInPage(OMNI_BASE + "/v1/models");
+    if (r.ok) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
+    if (!r.netErr) return { ok: false }; // a timeout or an HTTP/shape failure is already decisive
   }
   const r = await runInDash(fetchModelsInPage); // Firefox: via the dashboard tab (a direct fetch hangs)
   if (r && r.ok && Array.isArray(r.models)) { _modelsCache = { at: Date.now(), models: r.models }; return { ok: true, models: r.models }; }
@@ -1043,27 +1190,29 @@ function oauthAutoImportInPage(provider) {
     .catch(() => ({ ok: false }));
 }
 // Import-token flows: user pastes a CLI/session token; OmniRoute validates + creates the connection.
-function oauthImportTokenInPage(provider, token, loginErr) {
+function oauthImportTokenInPage(provider, token, loginErr, invalidErr = "Invalid provider response") {
   return fetch("/api/oauth/" + provider + "/import-token", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
     body: JSON.stringify({ token, connectionId: null }),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
-    // Trust success only on a 2xx WITHOUT an error field (some endpoints return 200 + {error}).
-    if ((r.ok || r.status === 201) && !(d && d.error)) return { ok: true, id: d.connection && d.connection.id };
-    return { ok: false, error: (d && d.error) || "HTTP " + r.status };
+    if (!r.ok || d?.error || d?.success === false) return { ok: false, error: typeof d?.error === "string" ? d.error : "HTTP " + r.status };
+    if (typeof d?.connection?.id !== "string" || !d.connection.id.trim()) return { ok: false, error: invalidErr };
+    return { ok: true, id: d.connection.id };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
 // Paste-credentials: some providers export an "omniroute-cred-v1.…" blob instead of a bare token.
-function oauthPasteCredsInPage(provider, blob, loginErr) {
+function oauthPasteCredsInPage(provider, blob, loginErr, invalidErr = "Invalid provider response") {
   return fetch("/api/oauth/" + provider + "/paste-credentials", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" },
     body: JSON.stringify({ blob, connectionId: null }),
   }).then(async (r) => {
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
-    return ((r.ok || r.status === 201) && !(d && d.error)) ? { ok: true, id: d.connection && d.connection.id } : { ok: false, error: (d && d.error) || "HTTP " + r.status };
+    if (!r.ok || d?.error || d?.success === false) return { ok: false, error: typeof d?.error === "string" ? d.error : "HTTP " + r.status };
+    if (typeof d?.connection?.id !== "string" || !d.connection.id.trim()) return { ok: false, error: invalidErr };
+    return { ok: true, id: d.connection.id };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
 const OAUTH_KEY = (slug) => "oauth_" + slug;
@@ -1129,7 +1278,7 @@ async function oauthImport(provider, token) {
   const gw = await requireGateway(); if (gw) return gw;
   // Accept EITHER a bare token (import-token) OR an exported "omniroute-cred-v1.…" blob (paste-credentials).
   const inPage = token.startsWith("omniroute-cred-v1.") ? oauthPasteCredsInPage : oauthImportTokenInPage;
-  const r = await runInDash(inPage, [provider, token, t("bg_needLogin")]);
+  const r = await runInDash(inPage, [provider, token, t("bg_needLogin"), t("bg_invalidResponse")]);
   return { ...r, slug: provider };
 }
 
@@ -1142,42 +1291,62 @@ async function oauthAutoImport(provider) {
   const d = await runInDash(oauthAutoImportInPage, [provider]);
   if (d && d.error) return { ok: false, error: t("bg_omniUnreachable", [String(d.error)]) }; // runInDash-level failure (timeout/inject) ≠ "not found"
   if (!d || d.ok !== true || !d.found || !d.token) return { ok: false, error: t("bg_noLocalCreds") };
-  const r = await runInDash(oauthImportTokenInPage, [provider, d.token, t("bg_needLogin")]);
+  // The local lookup can take time; recheck before forwarding the detected credential.
+  const ready = await requireGateway(); if (ready) return ready;
+  const r = await runInDash(oauthImportTokenInPage, [provider, d.token, t("bg_needLogin"), t("bg_invalidResponse")]);
   return { ...r, slug: provider };
 }
 
 // Bulk ZIP import: a .zip of many exported accounts → extract (raw octet-stream) → import-bulk.
 // The file can't cross executeScript args (only JSON), so the popup sends base64 and we rebuild the
 // bytes in-page.
-function zipExtractInPage(authSlug, b64) {
+function zipExtractInPage(authSlug, b64, loginErr, invalidErr = "Invalid archive response") {
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return fetch("/api/providers/" + authSlug + "/zip-extract", {
     method: "POST", credentials: "include", headers: { "Content-Type": "application/octet-stream" }, body: arr,
   }).then(async (r) => {
-    const d = await r.json().catch(() => ({}));
-    return r.ok ? { ok: true, entries: d.entries || d.accounts || [] } : { ok: false, error: d.error || "HTTP " + r.status };
+    if (r.status === 401 || r.status === 403) return { ok: false, error: loginErr };
+    const d = await r.json().catch(() => null);
+    if (!r.ok || d?.error) return { ok: false, error: typeof d?.error === "string" ? d.error : "HTTP " + r.status };
+    if (!Array.isArray(d?.entries) || !d.entries.every((e) => e && typeof e === "object" && !Array.isArray(e) && "json" in e)) return { ok: false, error: invalidErr };
+    return { ok: true, entries: d.entries };
   }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
 }
-function importBulkInPage(authSlug, entries) {
+function importBulkInPage(authSlug, entries, loginErr, invalidErr = "Invalid batch response") {
+  const unknown = (error) => ({ ok: false, batch: true, partial: false, added: null, failed: null, total: entries.length, errors: [], error });
   return fetch("/api/providers/" + authSlug + "/import-bulk", {
     method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ entries }),
   }).then(async (r) => {
-    const d = await r.json().catch(() => ({}));
-    return (r.ok || r.status === 201) && !(d && d.error) ? { ok: true, added: (d.imported || entries).length || entries.length } : { ok: false, error: (d && d.error) || "HTTP " + r.status };
-  }).catch((e) => ({ ok: false, error: String(e).slice(0, 120) }));
+    if (r.status === 401 || r.status === 403) return unknown(loginErr);
+    const d = await r.json().catch(() => null);
+    if (!r.ok) return unknown(typeof d?.error === "string" ? d.error : "HTTP " + r.status);
+    // claude-auth, codex-auth and agy-auth share this numeric, per-entry contract.
+    // This helper is serialized in isolation, so it cannot call the API-key helper above.
+    const valid = d && !d.error && [d.success, d.failed, d.total].every((n) => Number.isSafeInteger(n) && n >= 0)
+      && d.total === entries.length && d.success + d.failed === d.total
+      && Array.isArray(d.created) && d.created.length === d.success && d.created.every((c) => c && typeof c.id === "string" && c.id.trim())
+      && Array.isArray(d.errors) && d.errors.length === d.failed
+      && d.errors.every((e) => e && Number.isInteger(e.index) && e.index >= 0 && e.index < d.total && typeof e.message === "string")
+      && new Set(d.errors.map((e) => e.index)).size === d.failed;
+    if (!valid) return unknown(invalidErr);
+    const errors = d.errors.map((e) => ({ index: e.index, message: e.message.slice(0, 240) }));
+    return { ok: d.success > 0 && d.failed === 0, batch: true, partial: d.success > 0 && d.failed > 0, added: d.success, failed: d.failed, total: d.total, errors };
+  }).catch(() => unknown(invalidErr));
 }
 async function zipImport(provider, b64) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
   if (!p || !p.zipAuth) return { ok: false, error: t("bg_noZipSupport") };
   if (!b64) return { ok: false, error: t("bg_noFile") };
   const gw = await requireGateway(); if (gw) return gw;
-  const ex = await runInDash(zipExtractInPage, [p.zipAuth, b64]);
+  const ex = await runInDash(zipExtractInPage, [p.zipAuth, b64, t("bg_needLogin"), t("bg_invalidResponse")]);
   if (!ex || ex.ok !== true) return { ok: false, error: (ex && ex.error) || t("bg_zipExtractFail") };
+  if (!Array.isArray(ex.entries)) return { ok: false, error: t("bg_invalidResponse") };
   if (!ex.entries.length) return { ok: false, error: t("bg_zipEmpty") };
-  const r = await runInDash(importBulkInPage, [p.zipAuth, ex.entries]);
-  return { ...r, slug: provider };
+  const ready = await requireGateway(); if (ready) return ready;
+  const r = await runInDash(importBulkInPage, [p.zipAuth, ex.entries, t("bg_needLogin"), t("bg_invalidResponse")]);
+  return { batch: true, added: null, failed: null, total: ex.entries.length, errors: [], ...r, slug: provider };
 }
 
 // Poll ONE provider's pending flow → updated state (state is stored per-provider, so concurrent
@@ -1204,6 +1373,13 @@ async function pollProvider(slug) {
       const done = { ...s, status: "success", detail: t("bg_connected") };
       await SEC.set({ [key]: done }); return done;
     }
+    const wait = { ...s, nextPollAt: Date.now() + interval * 1000 };
+    await SEC.set({ [key]: wait }); return wait;
+  }
+  // Device codes/verifiers are credentials too; an earlier successful start cannot authorize
+  // forwarding them after a dashboard logout or a service replacement.
+  const gw = await requireGateway();
+  if (gw) {
     const wait = { ...s, nextPollAt: Date.now() + interval * 1000 };
     await SEC.set({ [key]: wait }); return wait;
   }

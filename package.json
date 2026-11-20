@@ -9,8 +9,9 @@
     "test:catalog": "node test-catalog.mjs",
     "test:render": "node test-render.mjs",
     "test:bg": "node test-background.mjs",
+    "test:runtime": "node --test test-runtime.mjs",
     "test:i18n": "node test-i18n.mjs",
-    "test": "node test-catalog.mjs && node test-render.mjs && node test-background.mjs && node test-i18n.mjs",
+    "test": "node test-catalog.mjs && node test-render.mjs && node test-background.mjs && node --test test-runtime.mjs && node test-i18n.mjs",
     "check": "node --check background.js && node --check popup.js && node --check providers.js && node --check content-aistudio.js"
   },
   "devDependencies": {
