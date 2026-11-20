@@ -523,3 +523,89 @@ test("identical authenticated XHRs do not repeatedly write or remove session sto
   assert.equal(writes, 1, "a burst of identical captures has one storage write");
   assert.equal(removals, 0, "an absent dismissal marker does not need twelve storage removals");
 });
+
+for (const direct of [false, true]) for (const probe of [false, true]) {
+  test(`${probe ? "chatProbe" : "chatOnce"} bounds stalled bodies in the ${direct ? "direct" : "serialized page"} path`, async () => {
+    for (const honorsAbort of [false, true]) {
+      const clock = timers();
+      const reply = { choices: [{ message: { content: "Synthetic late completion" } }] };
+      let signal, resolveBody, result, requests = 0;
+      const api = boot({ direct, clock, fetch: async (_url, opts) => {
+        requests++;
+        signal = opts.signal;
+        return { ...response(reply), json: () => new Promise((resolve, reject) => {
+          resolveBody = resolve;
+          if (honorsAbort) signal.addEventListener("abort", () => reject(Object.assign(new Error("Synthetic body aborted"), { name: "AbortError" })), { once: true });
+        }) };
+      } });
+      const pending = probe ? api.sandbox.chatProbe("openai/synthetic-model")
+        : api.sandbox.chatOnce("openai/synthetic-model", [{ role: "user", content: "Synthetic test" }]);
+      pending.then((r) => { result = r; });
+      try {
+        await tick();
+        assert.ok(resolveBody, "response headers arrived and the body is being read");
+        const deadline = [...clock.pending].find(([, timer]) => timer.ms === (probe ? 30000 : 90000));
+        assert.ok(deadline, "the fetch deadline stays active after receiving headers");
+        // Fire only the fetch deadline, not runInDash's longer outer injection timeout.
+        clock.pending.delete(deadline[0]);
+        deadline[1].fn();
+        await tick();
+        assert.ok(result, "the deadline settles even when a body ignores abort");
+        assert.equal(signal.aborted, true);
+        assert.equal(result.ok, false, "aborting a 200 response body is not a successful completion");
+        assert.equal(result.text, undefined);
+        if (probe) {
+          assert.equal(result.netErr, true, "a timed-out probe is unknown, not an auth verdict");
+          assert.equal(result.msg, api.chrome.i18n.getMessage("bg_probeAbort"));
+        } else {
+          assert.equal(result.status, 0);
+          assert.equal(result.error, api.chrome.i18n.getMessage("bg_timeout"));
+        }
+        assert.equal(requests, 1, "a timed-out completion is not sent again through a dashboard tab");
+        assert.equal(api.injected.length, direct ? 0 : 1);
+        assert.equal(clock.pending.size, 0, "fetch and injection deadlines are both released");
+      } finally {
+        resolveBody?.(reply);
+        clock.fire();
+        await pending;
+      }
+    }
+  });
+}
+
+test("chat deadlines clear on completed bodies and retain HTTP failures in both browser paths", async () => {
+  for (const direct of [false, true]) for (const probe of [false, true]) for (const status of [200, 401]) {
+    const clock = timers();
+    const reply = status === 200 ? { choices: [{ message: { content: "Synthetic reply" } }], usage: { total_tokens: 2 } }
+      : { error: { message: "Synthetic authentication failure" } };
+    let requests = 0;
+    const api = boot({ direct, clock, fetch: async () => { requests++; return response(reply, status); } });
+    const result = probe ? await api.sandbox.chatProbe("openai/synthetic-model")
+      : await api.sandbox.chatOnce("openai/synthetic-model", [{ role: "user", content: "Synthetic test" }]);
+    assert.equal(result.ok, status === 200);
+    if (status === 200) assert.equal(result.text, "Synthetic reply");
+    else {
+      assert.equal(result.status, 401);
+      assert.equal(probe ? result.msg : result.error, "Synthetic authentication failure");
+    }
+    assert.equal(requests, 1, "HTTP responses do not cause a second completion");
+    assert.equal(clock.pending.size, 0);
+  }
+});
+
+test("chat direct network failures retain the one dashboard fallback", async () => {
+  for (const probe of [false, true]) {
+    const clock = timers(), urls = [];
+    const api = boot({ direct: true, clock, fetch: async (url) => {
+      urls.push(url);
+      if (url.startsWith("http:")) throw new TypeError("Synthetic direct network failure");
+      return response({ choices: [{ message: { content: "Synthetic fallback reply" } }] });
+    } });
+    const result = probe ? await api.sandbox.chatProbe("openai/synthetic-model")
+      : await api.sandbox.chatOnce("openai/synthetic-model", [{ role: "user", content: "Synthetic test" }]);
+    assert.equal(result.ok, true);
+    assert.equal(result.text, "Synthetic fallback reply");
+    assert.deepEqual(urls, ["http://127.0.0.1:20128/v1/chat/completions", "/v1/chat/completions"]);
+    assert.equal(clock.pending.size, 0);
+  }
+});

@@ -888,65 +888,71 @@ async function fetchModels() {
 // The completion probe runs IN the dashboard tab (http→http) — a direct SW fetch to the http loopback is
 // blocked by Firefox mixed content. The page fn returns a plain verdict (a Response can't cross
 // executeScript); `fetched:true` marks a real page result vs a runInDash-level inject/timeout failure.
-function chatProbeInPage(modelId) {
+function chatProbeInPage(modelId, url = "/v1/chat/completions", timeoutErr = "Request timed out") {
   const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), 30000); // self-abort so a hung fetch doesn't orphan past runInDash's cap
-  return fetch("/v1/chat/completions", {
-    method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
-    body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 16 }),
-  }).then(async (r) => {
-    let msg = "HTTP " + r.status, text = "";
-    try { const d = await r.json(); msg = (d.error || {}).message || msg; text = ((((d.choices || [])[0] || {}).message || {}).content || ""); } catch (e) {}
-    return { fetched: true, ok: r.ok, status: r.status, msg, text: String(text).slice(0, 200) };
-  }).catch((e) => ({ fetched: true, netErr: true, msg: String(e).slice(0, 120) })).finally(() => clearTimeout(to));
+  let timer;
+  const timedOut = { fetched: true, ok: false, netErr: true, state: "timeout", msg: timeoutErr };
+  const request = (async () => {
+    try {
+      const r = await fetch(url, {
+        method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
+        body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 16 }),
+      });
+      let msg = "HTTP " + r.status, text = "";
+      try { const d = await r.json(); msg = (d.error || {}).message || msg; text = ((((d.choices || [])[0] || {}).message || {}).content || ""); }
+      catch (e) { if (ctrl.signal.aborted || e?.name === "AbortError") return timedOut; }
+      if (ctrl.signal.aborted) return timedOut;
+      return { fetched: true, ok: r.ok, status: r.status, msg, text: String(text).slice(0, 200) };
+    } catch (e) {
+      return ctrl.signal.aborted || e?.name === "AbortError" ? timedOut : { fetched: true, ok: false, netErr: true, msg: String(e).slice(0, 120) };
+    }
+  })();
+  // Keep the deadline through JSON parsing; the race also bounds a body that ignores abort.
+  const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve(timedOut); }, 30000); });
+  return Promise.race([request, expired]).finally(() => clearTimeout(timer));
 }
 // Direct completion probe first (Chrome — no tab); on throw (Firefox mixed content) fall back to the tab.
 async function chatProbe(modelId) {
-  const body = JSON.stringify({ model: modelId, messages: [{ role: "user", content: "hi" }], max_tokens: 16 });
   if (CAN_DIRECT_FETCH) {
-    try {
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 30000);
-      const r = await fetch(OMNI_BASE + "/v1/chat/completions", {
-        method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body,
-      }).finally(() => clearTimeout(to));
-      let msg = "HTTP " + r.status, text = "";
-      try { const d = await r.json(); msg = (d.error || {}).message || msg; text = ((((d.choices || [])[0] || {}).message || {}).content || ""); } catch (e) {}
-      return { fetched: true, ok: r.ok, status: r.status, msg, text: String(text).slice(0, 200) };
-    } catch (e) {
-      if (e && e.name === "AbortError") return { fetched: true, netErr: true, msg: t("bg_probeAbort") };
-      // any other direct error → fall through to the tab
-    }
+    const r = await chatProbeInPage(modelId, OMNI_BASE + "/v1/chat/completions", t("bg_probeAbort"));
+    if (!r.netErr || r.state === "timeout") return r; // a timeout must not send the completion again via the tab
   }
-  const r = await runInDash(chatProbeInPage, [modelId], 32000); // Firefox: via the tab (a direct fetch hangs)
+  const r = await runInDash(chatProbeInPage, [modelId, "/v1/chat/completions", t("bg_probeAbort")], 32000); // Firefox: via the tab (a direct fetch hangs)
   if (r && r.fetched) return r;
   return { fetched: true, netErr: true, msg: String((r && r.error) || "").slice(0, 120) };
 }
 // Test chat (popup "Чат"): one non-streamed completion, timed. Same direct-in-Chrome / tab-in-Firefox split
 // as the probe. The reply text is returned to the popup only — nothing is stored.
-function chatInPage(model, messages) {
+function chatInPage(model, messages, url = "/v1/chat/completions", timeoutErr = "Request timed out") {
   const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), 90000);
-  return fetch("/v1/chat/completions", {
-    method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
-    body: JSON.stringify({ model, messages, max_tokens: 800, stream: false }),
-  }).then(async (r) => {
-    const d = await r.json().catch(() => ({}));
-    return { ok: r.ok, status: r.status, data: d };
-  }).catch((e) => ({ ok: false, status: 0, data: { error: { message: String(e).slice(0, 160) } } })).finally(() => clearTimeout(to));
+  let timer;
+  const timedOut = { ok: false, status: 0, state: "timeout", data: { error: { message: timeoutErr } } };
+  const request = (async () => {
+    try {
+      const r = await fetch(url, {
+        method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal,
+        body: JSON.stringify({ model, messages, max_tokens: 800, stream: false }),
+      });
+      let d = {};
+      try { d = await r.json(); }
+      catch (e) { if (ctrl.signal.aborted || e?.name === "AbortError") return timedOut; }
+      return ctrl.signal.aborted ? timedOut : { ok: r.ok, status: r.status, data: d };
+    } catch (e) {
+      return ctrl.signal.aborted || e?.name === "AbortError" ? timedOut : { ok: false, status: 0, netErr: true, data: { error: { message: String(e).slice(0, 160) } } };
+    }
+  })();
+  const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve(timedOut); }, 90000); });
+  return Promise.race([request, expired]).finally(() => clearTimeout(timer));
 }
 async function chatOnce(model, messages) {
   if (!model || !Array.isArray(messages) || !messages.length) return { ok: false, error: t("bg_noIdData") };
   const t0 = Date.now();
   let r = null;
   if (CAN_DIRECT_FETCH) {
-    try {
-      const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 90000);
-      const res = await fetch(OMNI_BASE + "/v1/chat/completions", { method: "POST", headers: { "content-type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ model, messages, max_tokens: 800, stream: false }) }).finally(() => clearTimeout(to));
-      r = { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
-    } catch (e) { r = null; }
+    r = await chatInPage(model, messages, OMNI_BASE + "/v1/chat/completions", t("bg_timeout"));
+    if (r.netErr) r = null; // retry only a network failure, never an aborted completion
   }
-  if (!r) r = await runInDash(chatInPage, [model, messages], 95000);
+  if (!r) r = await runInDash(chatInPage, [model, messages, "/v1/chat/completions", t("bg_timeout")], 95000);
   const ms = Date.now() - t0;
   const d = (r && r.data) || {};
   const text = d.choices && d.choices[0] && d.choices[0].message ? String(d.choices[0].message.content || "") : "";
