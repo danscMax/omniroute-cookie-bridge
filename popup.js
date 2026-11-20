@@ -48,6 +48,10 @@ async function refreshHostBanner() {
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
+function isEditing(container) {
+  const active = document.activeElement;
+  return !!(active && container && container.contains(active) && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable));
+}
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
 let caps = {};              // captured web sessions (cap_<key>)
@@ -413,7 +417,7 @@ function keyRow(p) {
 }
 function renderKeyList() {
   if ($("keyList").querySelector(".keyform[data-saving]")) return; // roster refresh must retain failed rows and their extra fields
-  if (document.activeElement && $("keyList").contains(document.activeElement)) return; // don't wipe a key being typed
+  if (isEditing($("keyList"))) return; // don't wipe a key being typed
   const q = $("keySearch").value.trim().toLowerCase();
   const box = $("keyList"); box.textContent = "";
   const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
@@ -568,7 +572,7 @@ function oauthCard(o) {
 }
 
 function renderOauth() {
-  if (document.activeElement && $("oauthList") && $("oauthList").contains(document.activeElement)) return; // don't wipe a token being typed
+  if (isEditing($("oauthList"))) return; // don't wipe a token being typed
   $("bOauth").textContent = String(OMNI_OAUTH.length);
   const q = ($("oauthSearch").value || "").trim().toLowerCase();
   const match = (o) => !q || o.label.toLowerCase().includes(q) || o.slug.includes(q);

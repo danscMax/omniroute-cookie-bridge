@@ -609,3 +609,46 @@ test("chat direct network failures retain the one dashboard fallback", async () 
     assert.equal(clock.pending.size, 0);
   }
 });
+
+test("focused API-key row headers open forms while focused text fields retain their drafts", async () => {
+  const p = await popup();
+  vm.runInContext('$("keySearch").value = "openai"; renderKeyList();', p.sandbox);
+  let active = null;
+  Object.defineProperty(p.document, "activeElement", { configurable: true, get: () => active });
+  const row = [...p.document.querySelectorAll(".keyrow")].find((row) => row.querySelector(".kname").textContent === "OpenAI");
+  assert.ok(row);
+  active = row.querySelector(".keyrow-h"); // a real mouse/keyboard activation focuses the header
+  active.onclick();
+  const input = p.document.querySelector('.keyform input[type="password"]');
+  assert.ok(input, "focus on the activated header must not suppress the form render");
+  input.value = "synthetic-unsent-draft";
+  active = input;
+  p.sandbox.renderKeyList();
+  assert.equal(p.document.querySelector('.keyform input[type="password"]'), input, "a focused credential draft is still protected from background renders");
+  assert.equal(input.value, "synthetic-unsent-draft");
+});
+
+test("focused OAuth actions render device progress and cancellation without wiping token drafts", async () => {
+  let started = false;
+  const p = await popup({
+    oauthStart: () => { started = true; return { ok: true }; },
+    oauthCancel: () => { started = false; return { ok: true }; },
+    oauthState: () => ({ states: started ? { github: { status: "pending", kind: "device", userCode: "TEST-ONLY", verifyUrl: "", interval: 5 } } : {} }),
+  });
+  let active = null;
+  Object.defineProperty(p.document, "activeElement", { configurable: true, get: () => active });
+  active = p.document.querySelector('[data-slug="github"] button');
+  assert.ok(active);
+  await active.onclick();
+  assert.equal(p.document.querySelector('[data-slug="github"] .code')?.textContent, "TEST-ONLY", "the focused Connect button must not freeze the old card");
+  active = p.document.querySelector('[data-slug="github"] .cancel');
+  await active.onclick();
+  assert.equal(p.document.querySelector('[data-slug="github"] .code'), null, "cancel renders immediately even while its button is focused");
+  const input = p.document.querySelector('#oauthList input[type="password"]');
+  assert.ok(input);
+  input.value = "synthetic-token-draft";
+  active = input;
+  p.sandbox.renderOauth();
+  assert.equal(p.document.querySelector('#oauthList input[type="password"]'), input);
+  assert.equal(input.value, "synthetic-token-draft");
+});
