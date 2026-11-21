@@ -35,7 +35,14 @@ function timers() {
 function boot({ fetch = async () => { throw new Error("Unexpected synthetic fetch"); }, direct = false, cookies, tabs, clock } = {}) {
   const chrome = makeChrome();
   const injected = [];
-  if (cookies) chrome.cookies = { getAll: cookies, onChanged: { addListener: () => {} } };
+  const openedTabs = [], captureFilters = [], cookieChanges = [];
+  chrome.tabs.create = async (options) => { openedTabs.push(structuredClone(options)); return { id: openedTabs.length + 10, ...options }; };
+  const addCaptureListener = chrome.webRequest.onBeforeSendHeaders.addListener;
+  chrome.webRequest.onBeforeSendHeaders.addListener = (fn, filter, options) => {
+    captureFilters.push(structuredClone({ filter, options }));
+    addCaptureListener(fn);
+  };
+  if (cookies) chrome.cookies = { getAll: cookies, onChanged: { addListener: (fn) => cookieChanges.push(fn) } };
   if (tabs) chrome.tabs.query = async () => tabs;
   const page = makeSandbox({ extra: { fetch, ...(clock || {}) } });
   chrome.scripting.executeScript = async ({ func, args = [] }) => {
@@ -55,20 +62,24 @@ function boot({ fetch = async () => { throw new Error("Unexpected synthetic fetc
   const capture = (url, cookie = "", token = "", extra = {}) => chrome._listeners.webRequest[0]({
     url, requestHeaders: [...(cookie ? [{ name: "Cookie", value: cookie }] : []), ...(token ? [{ name: "Authorization", value: "Bearer " + token }] : [])], ...extra,
   });
-  return { chrome, sandbox, message, inPage, injected, capture };
+  return { chrome, sandbox, message, inPage, injected, capture, openedTabs, captureFilters, cookieChanges };
 }
+
+const requestUrl = (p, pathname = "/api/synthetic") => new URL(pathname, p.captureUrls[0]).href;
+const sessionCookies = (p, value = "synthetic-session") => p.cookieGroups.map((names, i) => ({ name: names[0], value: `${value}-${i}` }));
+const sessionHeader = (p, value) => sessionCookies(p, value).map(({ name, value }) => `${name}=${value}`).join("; ");
 
 test("popup discovery covers every configured cookie provider, keeps secrets in the worker and coalesces reads", async () => {
   const queries = [];
   let api;
   api = boot({ cookies: async (q) => {
     queries.push(q);
-    const p = api.sandbox.OMNI_WEB.find((p) => [p.site, p.loginUrl].includes(q.url));
-    const name = p && api.sandbox.sessionNames(p)[0];
-    return name ? [{ name, value: "synthetic-session", domain: p.host, path: "/", storeId: "0", httpOnly: true }] : [];
+    const p = api.sandbox.OMNI_CAPTURE_WEB.find((p) => p.cred.t === "cookie" && p.captureUrls.includes(q.url));
+    return p ? sessionCookies(p).map((c) => ({ ...c, domain: new URL(q.url).hostname, path: "/", storeId: "0", httpOnly: true })) : [];
   } });
   const results = await Promise.all(Array.from({ length: 5 }, () => api.message({ action: "getAll", discover: true })));
-  const eligible = api.sandbox.OMNI_WEB.filter((p) => p.cred.t === "cookie" && api.sandbox.sessionNames(p).length);
+  const eligible = api.sandbox.OMNI_CAPTURE_WEB.filter((p) => p.cred.t === "cookie" && api.sandbox.sessionNames(p).length);
+  assert.ok(eligible.length > 10, "exercise the real reviewed cookie catalog");
   for (const p of eligible) {
     assert.ok(results[0].caps[p.key], p.key + " is discovered without a provider request");
     assert.ok(api.chrome.storage.local._dump()["cap_" + p.key], "default disk mirror retained");
@@ -82,7 +93,7 @@ test("popup discovery covers every configured cookie provider, keeps secrets in 
   const key = eligible[0].key;
   await api.message({ action: "clear", providerKey: key });
   assert.equal((await api.message({ action: "getAll", discover: true })).caps[key], null, "dismiss survives popup reopen/discovery");
-  api.capture(eligible[0].site + "/api/synthetic", api.sandbox.sessionNames(eligible[0])[0] + "=synthetic-new-session");
+  api.capture(requestUrl(eligible[0]), sessionHeader(eligible[0], "synthetic-new-session"));
   await tick();
   assert.ok((await api.message({ action: "getAll" })).caps[key], "new authenticated site activity can capture again");
 });
@@ -110,17 +121,22 @@ test("a cookie scan selects a complete store/partition candidate and never assem
 
 test("all configured token providers capture Bearer-only requests and retain tokens only in the same store", async () => {
   const api = boot();
-  const providers = api.sandbox.OMNI_WEB.filter((p) => p.cred.t === "token");
+  const providers = api.sandbox.OMNI_CAPTURE_WEB.filter((p) => p.cred.t === "token");
   assert.ok(providers.length);
   for (const p of providers) {
-    api.capture(p.site + "/api/synthetic", "", "synthetic-bearer", { cookieStoreId: "firefox-container-1" });
+    if (new URL(p.site).origin !== new URL(p.captureUrls[0]).origin) {
+      api.capture(p.site + "/api/synthetic", "", "synthetic-initiator-only", { cookieStoreId: "firefox-container-1" });
+      await tick();
+      assert.equal(api.chrome.storage.session._dump()["cap_" + p.key], undefined, p.key + " must not capture unrelated app-origin traffic");
+    }
+    api.capture(requestUrl(p), "", "synthetic-bearer", { cookieStoreId: "firefox-container-1" });
     await tick();
     const first = api.chrome.storage.session._dump()["cap_" + p.key];
     assert.equal(first?.token, "synthetic-bearer", p.key + " does not require cookies");
-    api.capture(p.site + "/api/static", "_ga=synthetic-a", "", { cookieStoreId: "firefox-container-1" });
+    api.capture(requestUrl(p, "/api/static"), "_ga=synthetic-a", "", { cookieStoreId: "firefox-container-1" });
     await tick();
     assert.equal(api.chrome.storage.session._dump()["cap_" + p.key].token, "synthetic-bearer");
-    api.capture(p.site + "/api/foreign", "_ga=synthetic-b", "", { cookieStoreId: "firefox-container-2" });
+    api.capture(requestUrl(p, "/api/foreign"), "_ga=synthetic-b", "", { cookieStoreId: "firefox-container-2" });
     await tick();
     const current = api.chrome.storage.session._dump()["cap_" + p.key];
     assert.equal(current.token, "synthetic-bearer");
@@ -214,7 +230,7 @@ test("all API-key and ZIP batch helpers use the upstream numeric result contract
   let result;
   const api = boot({ fetch: async () => response(result) });
   const routes = [
-    ...api.sandbox.OMNI_APIKEY.map((p) => ["bulkApiKeyInPage", p.slug]),
+    ...api.sandbox.OMNI_APIKEY.filter((p) => p.bulk && !p.dashboardOnly).map((p) => ["bulkApiKeyInPage", p.slug]),
     ...api.sandbox.OMNI_OAUTH.filter((p) => p.zipAuth).map((p) => ["importBulkInPage", p.zipAuth]),
   ];
   assert.ok(routes.length > 200);
@@ -254,19 +270,23 @@ test("bulk input is not silently dropped, extra data is forwarded and account id
     bodies.push(JSON.parse(opts.body));
     return response(batch(JSON.parse(opts.body).entries.length, JSON.parse(opts.body).entries.length));
   } });
-  const r = await api.sandbox.bulkAddApiKeys("google-pse-search", ["short", "synthetic-long-key"], { cx: "synthetic-cx" });
+  const r = await api.sandbox.bulkAddApiKeys("openai", ["short", "synthetic-long-key"]);
   assert.equal(r.added, 2, "upstream accepts any nonempty key; a short line must not vanish");
   assert.equal(bodies[0].entries.length, 2);
-  assert.equal(bodies[0].providerSpecificData.cx, "synthetic-cx");
   assert.equal(bodies[0].entries[0].accountId, undefined, "hashing an API key does not produce a Cloudflare account id");
+  const cloudflare = await api.sandbox.bulkAddApiKeys("cloudflare-ai", ["short", "synthetic-long-key"], { accountId: "synthetic-cloudflare-account", tag: "synthetic-tag" });
+  assert.equal(cloudflare.added, 2);
+  assert.deepEqual(bodies[1].providerSpecificData, { accountId: "synthetic-cloudflare-account", tag: "synthetic-tag" });
+  assert.ok(bodies[1].entries.every((entry) => entry.accountId === "synthetic-cloudflare-account"), "each Cloudflare bulk entry carries the actual accountId");
+  assert.equal((await api.sandbox.bulkAddApiKeys("google-pse-search", ["synthetic-key"], { cx: "synthetic-cx" })).ok, false);
+  assert.equal(bodies.length, 2, "PSE is excluded from bulk even when cx is supplied");
 });
 
 test("200 with missing create/import connection id cannot trigger a success probe", async () => {
   const api = boot({ fetch: async () => response({}) });
   for (const [name, args] of [
     ["postProviderInPage", ["openai", "Synthetic", "synthetic-key", "apikey", null, "Synthetic login"]],
-    ["oauthImportTokenInPage", ["cursor", "synthetic-token", "Synthetic login"]],
-    ["oauthPasteCredsInPage", ["cursor", "omniroute-cred-v1.synthetic", "Synthetic login"]],
+    ["oauthImportTokenInPage", ["devin-cli", "synthetic-token", "Synthetic login"]],
   ]) assert.equal((await api.inPage(name, args)).ok, false, name);
 });
 
@@ -296,6 +316,121 @@ async function popup(replies = {}) {
   return { sandbox, document, calls, chrome };
 }
 
+function popupTransport(p) {
+  const send = p.chrome.runtime.sendMessage;
+  const transport = { failure: null, calls: [], unchecked: [] };
+  p.chrome.runtime.sendMessage = (req, cb) => {
+    transport.calls.push(req);
+    const failure = transport.failure;
+    if (!failure) return send(req, cb);
+    if (failure.sync) throw new Error(failure.message);
+    queueMicrotask(() => {
+      let consumed = false;
+      Object.defineProperty(p.chrome.runtime, "lastError", {
+        configurable: true,
+        get() { consumed = true; return failure.message ? { message: failure.message } : undefined; },
+      });
+      try { cb(failure.reply); }
+      finally {
+        delete p.chrome.runtime.lastError;
+        if (failure.message && !consumed) transport.unchecked.push(req.action);
+      }
+    });
+  };
+  return transport;
+}
+
+test("popup transport failures consume callback lastError without replay and preserve later replies", async () => {
+  const replies = {}, p = await popup(replies), transport = popupTransport(p);
+  const send = vm.runInContext("msg", p.sandbox);
+  for (const failure of [
+    { message: "A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received" },
+    { message: "The message port closed before a response was received." },
+    { message: "Could not establish connection. Receiving end does not exist." },
+    { sync: true, message: "Extension context invalidated." },
+    {}, { reply: null },
+  ]) {
+    transport.failure = failure; transport.calls.length = 0;
+    const result = await send({ action: "addApiKey", slug: "openai", apiKey: "synthetic-must-not-replay" });
+    assert.equal(result.ok, false);
+    assert.equal(result.transportError, true);
+    assert.equal(result.unreachable, true);
+    assert.ok(result.error);
+    if (failure.message) assert.equal(result.error, failure.message);
+    assert.equal(result.detail, result.error);
+    assert.equal(result.id, undefined, "a lost response cannot invent a created account");
+    assert.equal(result.added, undefined, "a lost response cannot invent a batch count");
+    assert.equal(JSON.stringify(result).includes("synthetic-must-not-replay"), false);
+    assert.deepEqual(transport.calls.map((r) => r.action), ["addApiKey"]);
+    p.sandbox.saveSettings(); // The real caller ignores its Promise; node:test detects any unhandled rejection.
+    await tick();
+    assert.deepEqual(transport.calls.map((r) => r.action), ["addApiKey", "setSettings"]);
+    assert.deepEqual(transport.unchecked, [], "lastError must be consumed before the callback returns");
+    transport.failure = null;
+    for (const reply of [{ ok: true, state: "ready" }, { ok: false, error: "Synthetic application failure" }, false]) {
+      replies.ping = reply;
+      assert.equal(await send({ action: "ping" }), reply, "successful transport preserves even negative/falsy replies unchanged");
+    }
+    assert.equal(transport.calls.filter((r) => r.action === "addApiKey").length, 1, "recovery never replays the write");
+  }
+});
+
+test("popup transport failures mark the roster unreadable and the server offline, then recover", async () => {
+  const p = await popup({ connections: {
+    byProvider: { openai: { total: 1, good: 1, bad: 0, names: ["Synthetic account"] } },
+    total: 1, all: [{ id: "synthetic-account", provider: "openai", name: "Synthetic account" }], problems: [], unreachable: false,
+  } });
+  const transport = popupTransport(p);
+  transport.failure = { message: "Could not establish connection. Receiving end does not exist." };
+  await p.sandbox.loadConnections();
+  assert.equal(vm.runInContext("connUnreachable", p.sandbox), true);
+  assert.equal(p.document.getElementById("ftrHint").textContent, p.chrome.i18n.getMessage("popup_footerUnreadable"), "disconnection is not an empty successful roster");
+  await p.sandbox.probeServer();
+  assert.equal(p.document.getElementById("srvDot").classList.contains("bad"), true);
+  assert.equal(p.document.body.classList.contains("offline"), true);
+  assert.ok(p.document.getElementById("srvTxt").textContent.includes(transport.failure.message));
+  assert.deepEqual(transport.unchecked, []);
+  transport.failure = null;
+  await p.sandbox.probeServer(); await p.sandbox.loadConnections();
+  assert.equal(p.document.getElementById("srvDot").classList.contains("ok"), true);
+  assert.equal(p.document.body.classList.contains("offline"), false);
+  assert.equal(vm.runInContext("connUnreachable", p.sandbox), false);
+  assert.equal(vm.runInContext("connTotal", p.sandbox), 1);
+  assert.ok(p.document.getElementById("ftrHint").textContent.includes("🔗 1"));
+});
+
+test("popup transport failures cannot acknowledge an import, probe or session refresh", async () => {
+  const p = await popup({ connections: {
+    byProvider: { openai: { total: 1, good: 0, bad: 0, names: [] } }, total: 1, all: [], problems: [], unreachable: false,
+  } });
+  const transport = popupTransport(p);
+  transport.failure = { message: "The message port closed before a response was received." };
+  vm.runInContext('keyExpanded = "openai"; $("keySearch").value = "openai"; renderKeyList();', p.sandbox);
+  const form = p.document.querySelector(".keyform"), key = form.querySelector('input[type="password"]');
+  const add = form.querySelector(".actions button"), res = form.querySelector(".res");
+  key.value = "synthetic-unsent-key";
+  await add.onclick();
+  assert.equal(res.classList.contains("bad"), true);
+  assert.ok(res.textContent.includes(transport.failure.message));
+  assert.equal(key.value, "synthetic-unsent-key", "failure retains the user's draft");
+  assert.equal(add.disabled, false);
+  assert.deepEqual(transport.calls.map((r) => r.action), ["addApiKey"], "a lost import reply triggers neither a probe nor another write");
+  await p.sandbox.reprobe(res, "openai");
+  assert.equal(res.classList.contains("mut"), true, "a lost probe reply is unknown, not a successful or dead provider");
+  assert.ok(res.textContent.includes(transport.failure.message));
+  const refresh = p.document.getElementById("refreshAllBtn");
+  for (const run of [() => p.sandbox.runProbeAll(), () => p.sandbox.runRefresh(["perplexity-web"], refresh)]) {
+    await run();
+    const summary = p.document.getElementById("probeAllRes");
+    assert.equal(summary.classList.contains("bad"), true, "missing aggregate results cannot render green success");
+    assert.ok(summary.textContent.includes(transport.failure.message));
+    assert.equal(p.document.getElementById("probeProg").classList.contains("hide"), true);
+  }
+  assert.equal(p.document.getElementById("probeAllBtn").disabled, false);
+  assert.equal(refresh.disabled, false);
+  assert.deepEqual(transport.unchecked, []);
+});
+
 test("popup requests discovery only at startup and retains batch summaries through roster refreshes", async () => {
   for (const added of [0, 1, 2]) {
     const p = await popup();
@@ -315,24 +450,24 @@ test("popup requests discovery only at startup and retains batch summaries throu
 });
 
 test("bulk form keeps only failed keys after its roster refresh, and forwards required extras", async () => {
-  const p = await popup({ bulkAddApiKey: { ...batch(1), batch: true, added: 1, ok: false, partial: true, slug: "google-pse-search" } });
-  // This provider's schema is supported by the adapter but missing from the old generated catalog.
-  // Supply only its metadata here; the form, message path and re-render remain the shipped code.
-  vm.runInContext('OMNI_APIKEY.push({ slug: "google-pse-search", label: "Synthetic Search", family: "Synthetic", extra: [{ key: "cx", label: "Search Engine ID", required: true }] });', p.sandbox);
-  vm.runInContext('keyExpanded = "google-pse-search"; $("keySearch").value = "google-pse-search"; renderKeyList();', p.sandbox);
+  const p = await popup({ bulkAddApiKey: { ...batch(1), batch: true, added: 1, ok: false, partial: true, slug: "cloudflare-ai" } });
+  assert.equal(p.sandbox.OMNI_APIKEY_MAP["cloudflare-ai"].bulk, true);
+  vm.runInContext('keyExpanded = "cloudflare-ai"; $("keySearch").value = "cloudflare-ai"; renderKeyList();', p.sandbox);
   const form = p.document.querySelector(".keyform");
   const area = form.querySelector("textarea");
-  area.classList.remove("hide");
+  const toggle = [...form.querySelectorAll("button")].find((b) => b.textContent === p.chrome.i18n.getMessage("key_bulkOn"));
+  assert.ok(toggle, "the real supported provider offers bulk mode");
+  toggle.onclick();
   area.value = "synthetic-key-a\nsynthetic-key-b";
-  const extra = [...form.querySelectorAll("input")].find((input) => (input.placeholder || "").includes("Search Engine ID"));
+  const extra = [...form.querySelectorAll("input")].find((input) => (input.placeholder || "").includes("Cloudflare Account ID"));
   assert.ok(extra);
   const add = form.querySelector(".actions button");
   await add.onclick();
   assert.equal(p.calls.filter((c) => c.action === "bulkAddApiKey").length, 0, "required fields also apply to bulk mode");
-  extra.value = "synthetic-cx";
+  extra.value = "synthetic-cloudflare-account";
   await add.onclick();
   const sent = p.calls.find((c) => c.action === "bulkAddApiKey");
-  assert.equal(sent.psd.cx, "synthetic-cx");
+  assert.equal(sent.psd.accountId, "synthetic-cloudflare-account");
   assert.equal(p.document.querySelector(".keyform textarea").value, "synthetic-key-b", "refresh must not replace the form before failed rows are retained");
   assert.match(p.document.querySelector(".keyform .res").textContent, /Synthetic rejection/);
   assert.equal(p.calls.filter((c) => c.action === "probe").length, 0);
@@ -465,7 +600,7 @@ test("pending device flows never forward codes to a signed-out or incompatible g
       if (opts.method === "POST") { writes.push(url); return response({ error: "authorization_pending" }); }
       return response(body, status);
     } });
-    for (const p of api.sandbox.OMNI_OAUTH.filter((p) => p.deviceFlow)) {
+    for (const p of api.sandbox.OMNI_OAUTH.filter((p) => p.deviceFlow && !p.dashboardOnly)) {
       await api.chrome.storage.session.set({ ["oauth_" + p.slug]: {
         provider: p.slug, kind: "device", status: "pending", deviceCode: "synthetic-device-code",
         codeVerifier: "synthetic-verifier", expiresAt: Date.now() + 60000, interval: 5,
@@ -615,7 +750,7 @@ test("focused API-key row headers open forms while focused text fields retain th
   vm.runInContext('$("keySearch").value = "openai"; renderKeyList();', p.sandbox);
   let active = null;
   Object.defineProperty(p.document, "activeElement", { configurable: true, get: () => active });
-  const row = [...p.document.querySelectorAll(".keyrow")].find((row) => row.querySelector(".kname").textContent === "OpenAI");
+  const row = [...p.document.querySelectorAll(".keyrow")].find((row) => row.querySelector(".kname").textContent === p.sandbox.OMNI_APIKEY_MAP.openai.label);
   assert.ok(row);
   active = row.querySelector(".keyrow-h"); // a real mouse/keyboard activation focuses the header
   active.onclick();
@@ -637,18 +772,465 @@ test("focused OAuth actions render device progress and cancellation without wipi
   });
   let active = null;
   Object.defineProperty(p.document, "activeElement", { configurable: true, get: () => active });
-  active = p.document.querySelector('[data-slug="github"] button');
+  active = [...p.document.querySelectorAll('#oauthList [data-slug="github"] button')]
+    .find((button) => !button.closest(".provider-guidance") && button.textContent === p.chrome.i18n.getMessage("oauth_connect"));
   assert.ok(active);
   await active.onclick();
   assert.equal(p.document.querySelector('[data-slug="github"] .code')?.textContent, "TEST-ONLY", "the focused Connect button must not freeze the old card");
   active = p.document.querySelector('[data-slug="github"] .cancel');
   await active.onclick();
   assert.equal(p.document.querySelector('[data-slug="github"] .code'), null, "cancel renders immediately even while its button is focused");
-  const input = p.document.querySelector('#oauthList input[type="password"]');
+  const input = p.document.querySelector('#oauthList [data-slug="devin-cli"] input[type="password"]');
   assert.ok(input);
   input.value = "synthetic-token-draft";
   active = input;
   p.sandbox.renderOauth();
-  assert.equal(p.document.querySelector('#oauthList input[type="password"]'), input);
+  assert.equal(p.document.querySelector('#oauthList [data-slug="devin-cli"] input[type="password"]'), input);
   assert.equal(input.value, "synthetic-token-draft");
 });
+
+test("every reviewed web recipe captures only its request hosts and complete credential format", async () => {
+  const api = boot();
+  const expectedFilters = [...new Set(api.sandbox.OMNI_CAPTURE_WEB.flatMap((p) => p.capturePerms))].sort();
+  assert.equal(api.captureFilters.length, 1);
+  assert.deepEqual(api.captureFilters[0].filter.urls.slice().sort(), expectedFilters);
+  assert.deepEqual(api.captureFilters[0].filter.types, ["xmlhttprequest"]);
+  assert.ok(api.captureFilters[0].options.includes("requestHeaders"));
+  const captured = [];
+  for (const p of api.sandbox.OMNI_CAPTURE_WEB) {
+    const key = "cap_" + p.key, url = requestUrl(p), host = new URL(url).hostname;
+    const cookie = p.cred.t === "cookie" ? sessionHeader(p) : "";
+    const token = p.cred.t === "token" ? "synthetic-reviewed-bearer" : "";
+    const flush = () => api.sandbox.queueCapture(p.key, async () => {});
+    for (const wrong of [`http://${host}/api/synthetic`, `https://${host}.unreviewed.test/api/synthetic`, `https://extra.${host}/api/synthetic`]) {
+      api.capture(wrong, cookie, token); await flush();
+      assert.equal(api.chrome.storage.session._dump()[key], undefined, `${p.slug}: wrong host ${wrong}`);
+    }
+    if (!p.hostRe.test(p.site)) {
+      assert.ok(p.perms.includes(new URL(p.site).origin + "/*"));
+      assert.ok(!p.capturePerms.includes(new URL(p.site).origin + "/*"));
+      api.capture(p.site, cookie, token); await flush();
+      assert.equal(api.chrome.storage.session._dump()[key], undefined, `${p.slug}: initiator-only permission is not a capture recipe`);
+    }
+    if (p.cred.t === "cookie") {
+      const complete = sessionCookies(p);
+      for (let missing = 0; missing < p.cookieGroups.length; missing++) {
+        const incomplete = complete.filter((_, i) => i !== missing).map((c) => `${c.name}=${c.value}`).join("; ");
+        api.capture(url, "_ga=synthetic; " + incomplete, "synthetic-not-a-cookie-fallback"); await flush();
+        assert.equal(api.chrome.storage.session._dump()[key], undefined, `${p.slug}: required cookie group ${missing} cannot be omitted or borrowed from another request`);
+      }
+    } else {
+      for (const value of ["Basic synthetic", "Bearer ", "Bearer synthetic extra"]) {
+        api.capture(url, "", "", { requestHeaders: [{ name: "Authorization", value }] }); await flush();
+        assert.equal(api.chrome.storage.session._dump()[key], undefined, `${p.slug}: malformed Authorization is not a token`);
+      }
+    }
+    for (const source of p.captureUrls) {
+      api.capture(source, cookie, token); await flush();
+      const cap = api.chrome.storage.session._dump()[key];
+      assert.ok(cap, `${p.slug}: ${source} captures the reviewed format`);
+      const expected = token || (p.valueCookie ? sessionCookies(p).find((c) => c.name === p.valueCookie).value : cookie);
+      assert.equal(api.sandbox.omniBuildCredential(p, cap), expected, `${p.slug}: named value, full header or Bearer is preserved`);
+    }
+    captured.push(p.slug);
+  }
+  assert.deepEqual(captured, Array.from(api.sandbox.OMNI_CAPTURE_WEB, (p) => p.slug));
+  assert.deepEqual(api.injected, [], "capture never forwards credentials to the dashboard by itself");
+});
+
+test("cookie aliases satisfy their own required group and worker imports preserve the reviewed credential shape", async () => {
+  const writes = [];
+  const api = boot({ fetch: async (url, options = {}) => {
+    assert.equal(url, "/api/providers");
+    if (options.method !== "POST") return response(roster);
+    const body = JSON.parse(options.body); writes.push(body);
+    return response({ connection: { id: "synthetic-cookie-import-" + writes.length } }, 201);
+  } });
+  let alternativeCases = 0, namedCases = 0;
+  for (const p of api.sandbox.OMNI_CAPTURE_WEB.filter((p) => p.cred.t === "cookie")) {
+    const complete = sessionCookies(p, "synthetic-" + p.slug);
+    const variants = [complete];
+    for (const [i, group] of p.cookieGroups.entries()) for (const alias of group.slice(1)) {
+      variants.push(complete.map((cookie, index) => index === i ? { ...cookie, name: alias } : cookie));
+      alternativeCases++;
+    }
+    for (const cookies of variants) {
+      const header = "_ga=synthetic-analytics; " + cookies.map(({ name, value }) => `${name}=${value}==`).join("; ");
+      api.capture(requestUrl(p), header);
+      await api.sandbox.queueCapture(p.key, async () => {});
+      const cap = api.chrome.storage.session._dump()["cap_" + p.key];
+      assert.equal(cap?.cookie, header, `${p.slug}: an OR alias is a complete session when every other required group is present`);
+      const before = writes.length;
+      const result = await api.sandbox.sendToOmni(p.key, "Synthetic cookie import", true);
+      assert.equal(result.ok, true, p.slug);
+      assert.equal(writes.length, before + 1, `${p.slug}: one actual serialized import`);
+      assert.equal(writes[before].provider, p.slug);
+      assert.equal(writes[before].authType, "apikey");
+      const expected = p.valueCookie ? cookies.find((cookie) => cookie.name === p.valueCookie).value + "==" : header;
+      assert.equal(writes[before].apiKey, expected, `${p.slug}: named imports exclude the cookie name and analytics; header imports retain the full Cookie header`);
+      if (p.valueCookie) namedCases++;
+    }
+  }
+  assert.ok(alternativeCases > 0, "the shipped alias recipe must exercise a non-first cookie name");
+  assert.ok(namedCases > 0, "exercise value-only imports through the serialized provider POST");
+});
+
+test("worker capture rejects cookie chunk gaps and unsupported Auth.js names before importing a contiguous named value", async () => {
+  const writes = [];
+  const api = boot({ fetch: async (url, options = {}) => {
+    assert.equal(url, "/api/providers");
+    if (options.method !== "POST") return response(roster);
+    writes.push(JSON.parse(options.body));
+    return response({ connection: { id: "synthetic-chunk-import" } }, 201);
+  } });
+  const p = api.sandbox.OMNI_WEB_MAP["perplexity-web"];
+  const name = "__Secure-next-auth.session-token", key = "cap_" + p.key;
+  assert.equal(p.valueCookie, name);
+  const invalid = [
+    "__Secure-authjs.session-token=synthetic-unsupported",
+    `${name}.1=synthetic-tail`,
+    `${name}.0=synthetic-head; ${name}.2=synthetic-tail`,
+    `${name}.0=; ${name}.1=synthetic-tail`,
+    `prefix-${name}=synthetic-wrong-name`,
+  ];
+  for (const cookie of invalid) {
+    api.capture(requestUrl(p), cookie, "synthetic-bearer-is-not-a-cookie");
+    await api.sandbox.queueCapture(p.key, async () => {});
+    assert.equal(api.chrome.storage.session._dump()[key], undefined, `incomplete or unsupported cookie must not become ready: ${cookie}`);
+  }
+  assert.deepEqual(writes, [], "rejected headers cannot initiate an import");
+  const header = `${name}.1=tail==; _ga=synthetic; ${name}.0=synthetic-head-`;
+  api.capture(requestUrl(p), header);
+  await api.sandbox.queueCapture(p.key, async () => {});
+  assert.equal(api.chrome.storage.session._dump()[key]?.cookie, header);
+  const imported = await api.sandbox.sendToOmni(p.key, "Synthetic chunk account", true);
+  assert.equal(imported.ok, true);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].apiKey, "synthetic-head-tail==", "out-of-order contiguous chunks are joined by index and sent as a value only");
+  for (const cookie of invalid) {
+    api.capture(requestUrl(p), cookie);
+    await api.sandbox.queueCapture(p.key, async () => {});
+    assert.equal(api.chrome.storage.session._dump()[key].cookie, header, "later incomplete traffic cannot replace the complete captured session");
+  }
+});
+
+test("dashboard-only providers reject credential operations before any network request", async () => {
+  const requests = [], queries = [];
+  const api = boot({
+    fetch: async (url) => { requests.push(url); throw new Error("Dashboard-only operation attempted a request"); },
+    cookies: async (q) => { queries.push(q); return []; },
+  });
+  const manual = api.sandbox.OMNI_WEB.filter((p) => p.cred.t === "dashboard");
+  assert.ok(manual.some((p) => p.slug === "chatgpt-web"));
+  for (const p of manual) {
+    api.capture(new URL("/api/synthetic", p.site).href, "sessionKey=synthetic; __client=synthetic; token_v2=synthetic", "synthetic-token");
+    await api.sandbox.queueCapture(p.key, async () => {});
+    assert.equal(api.chrome.storage.session._dump()["cap_" + p.key], undefined, p.slug + " is not captured");
+    // Old persisted captures must not bypass the current capability decision.
+    await api.chrome.storage.session.set({ ["cap_" + p.key]: { cookie: "sessionKey=synthetic", token: "synthetic-token", at: Date.now() } });
+    assert.equal((await api.sandbox.sendToOmni(p.key)).dashboardOnly, true, p.slug);
+    assert.equal((await api.sandbox.loginAgain(p.key)).dashboardOnly, true, p.slug);
+    assert.equal((await api.message({ action: "getAll" })).caps[p.key], null, p.slug + " is never shown ready");
+  }
+  const refreshed = await api.sandbox.refreshSessions(Array.from(manual, (p) => p.key), false);
+  for (const p of manual) assert.equal(refreshed.results[p.key].state, "unknown", p.slug + " has no cookie refresh path");
+  for (const p of api.sandbox.OMNI_APIKEY) {
+    if (p.dashboardOnly) assert.equal((await api.sandbox.sendApiKeyToOmni(p.slug, "Synthetic", "synthetic-key")).dashboardOnly, true, p.slug);
+    if (p.dashboardOnly || !p.bulk) assert.equal((await api.sandbox.bulkAddApiKeys(p.slug, ["synthetic-key"], { cx: "synthetic", accountId: "synthetic" })).ok, false, p.slug + " bulk exclusion");
+  }
+  for (const p of api.sandbox.OMNI_OAUTH) {
+    if (p.dashboardOnly) {
+      const result = p.kind === "device" ? await api.sandbox.oauthStart(p.slug)
+        : p.kind === "redirect" ? await api.sandbox.oauthConnect(p.slug) : await api.sandbox.oauthImport(p.slug, "synthetic-token");
+      assert.equal(result.dashboardOnly, true, p.slug);
+      await api.chrome.storage.session.set({ ["oauth_" + p.slug]: { provider: p.slug, kind: p.kind, status: "pending", expiresAt: Date.now() + 60000 } });
+      assert.equal((await api.sandbox.pollProvider(p.slug)).status, "error", p.slug + " old pending state cannot bypass the gate");
+    }
+    if (p.dashboardOnly || !p.tokenImport) assert.equal((await api.sandbox.oauthImport(p.slug, "synthetic-token")).dashboardOnly, true, p.slug + " unsupported token route");
+    assert.equal((await api.sandbox.oauthAutoImport(p.slug)).dashboardOnly, true, p.slug + " has no generic local import");
+  }
+  assert.deepEqual(requests, []);
+  assert.deepEqual(queries, []);
+  assert.deepEqual(api.openedTabs, []);
+});
+
+test("every inline key provider preserves its exact ID, optional-key policy and required fields", async () => {
+  const writes = [], requests = [];
+  const api = boot({ fetch: async (url, options = {}) => {
+    requests.push({ url, method: options.method || "GET" });
+    assert.equal(url, "/api/providers");
+    if (options.method !== "POST") return response(roster);
+    const body = JSON.parse(options.body); writes.push(body);
+    return response({ connection: { id: "synthetic-created-" + body.provider } }, 201);
+  } });
+  const inline = api.sandbox.OMNI_APIKEY.filter((p) => !p.dashboardOnly);
+  for (const p of inline) {
+    const psd = Object.fromEntries((p.extra || []).filter((f) => f.required).map((f) => [f.key, "synthetic-" + f.key]));
+    const key = p.keyOptional ? "" : "synthetic-key-" + p.slug;
+    const n = writes.length;
+    const result = await api.sandbox.sendApiKeyToOmni(p.slug, "Synthetic account", `  ${key}  `, psd);
+    assert.equal(result.ok, true, p.slug);
+    assert.equal(result.id, "synthetic-created-" + p.slug);
+    assert.equal(result.slug, p.slug);
+    assert.equal(writes.length, n + 1);
+    assert.equal(writes[n].provider, p.slug);
+    assert.equal(writes[n].apiKey, key);
+    assert.equal(writes[n].authType, "apikey");
+    assert.deepEqual(writes[n].providerSpecificData || {}, psd);
+    if (!p.keyOptional) {
+      const before = requests.length;
+      assert.equal((await api.sandbox.sendApiKeyToOmni(p.slug, "Synthetic", "  ", psd)).ok, false, p.slug + " requires a key");
+      assert.equal(requests.length, before);
+    }
+  }
+  assert.deepEqual(writes.map((p) => p.provider), Array.from(inline, (p) => p.slug));
+  for (const [slug, field] of [["google-pse-search", "cx"], ["cloudflare-ai", "accountId"]]) {
+    for (const psd of [undefined, {}, { [field]: "  " }, { [field]: 42 }]) {
+      const before = requests.length;
+      assert.equal((await api.sandbox.sendApiKeyToOmni(slug, "Synthetic", "synthetic-key", psd)).ok, false, `${slug}: ${field} must be supplied`);
+      assert.equal(requests.length, before, "invalid required fields fail before gateway access");
+    }
+  }
+});
+
+test("all inline device routes forward their own verifier and extra data and require a saved connection", async () => {
+  const requests = [];
+  const api = boot({ fetch: async (url, options = {}) => {
+    if (url === "/api/providers") return response(roster);
+    requests.push({ url, options });
+    const [, slug, action] = url.match(/^\/api\/oauth\/([^/]+)\/(device-code|poll)$/) || [];
+    assert.ok(slug, "only the provider's registered device routes may be called");
+    if (action === "device-code") return response({
+      device_code: "synthetic-code-" + slug, user_code: "TEST-ONLY", codeVerifier: "synthetic-verifier-" + slug,
+      verification_uri: "https://synthetic.example.test/device", expires_in: 600, interval: 5,
+      _clientId: "synthetic-client", _clientSecret: "synthetic-secret", _region: "synthetic-region", _authMethod: "synthetic-method",
+    });
+    return response({ success: true, connection: { id: "synthetic-saved-" + slug, provider: slug } });
+  } });
+  const providers = api.sandbox.OMNI_OAUTH.filter((p) => p.deviceFlow && !p.dashboardOnly);
+  for (const p of providers) {
+    const n = requests.length;
+    assert.equal((await api.sandbox.oauthStart(p.slug)).ok, true, p.slug);
+    const state = await api.sandbox.pollProvider(p.slug);
+    assert.equal(state.status, "success", p.slug);
+    assert.equal(state.connId, "synthetic-saved-" + p.slug);
+    assert.deepEqual(requests.slice(n).map((r) => r.url), [`/api/oauth/${p.slug}/device-code`, `/api/oauth/${p.slug}/poll`]);
+    const poll = requests[n + 1].options;
+    assert.equal(poll.method, "POST");
+    assert.equal(poll.credentials, "include");
+    assert.deepEqual(JSON.parse(poll.body), { deviceCode: "synthetic-code-" + p.slug, codeVerifier: "synthetic-verifier-" + p.slug,
+      extraData: { _clientId: "synthetic-client", _clientSecret: "synthetic-secret", _region: "synthetic-region", _authMethod: "synthetic-method" } });
+    await api.sandbox.oauthCancel(p.slug);
+  }
+  assert.equal(api.openedTabs.length, providers.length, "authorization tabs are synthetic recorded actions only");
+});
+
+test("redirect completion uses POST poll-callback, ignores roster growth and accepts a same-account update", async () => {
+  let now = Date.now(), reply, connections = [];
+  const callbacks = [], starts = [];
+  const api = boot({ clock: { Date: class extends Date { static now() { return now; } } }, fetch: async (url, options = {}) => {
+    if (url === "/api/providers") return response({ connections });
+    if (url.endsWith("/start-callback-server")) { starts.push(url); return response({ authUrl: "https://synthetic.example.test/authorize" }); }
+    assert.ok(url.endsWith("/poll-callback"), "no generic authorize or roster-count completion fallback");
+    callbacks.push({ url, options });
+    return response(reply);
+  } });
+  const providers = api.sandbox.OMNI_OAUTH.filter((p) => p.kind === "redirect" && !p.dashboardOnly);
+  for (const p of providers) {
+    const id = "synthetic-existing-" + p.slug;
+    connections = [{ id, provider: p.slug, name: "Synthetic existing account" }];
+    reply = { success: false, pending: true };
+    assert.equal((await api.sandbox.oauthConnect(p.slug)).ok, true, p.slug);
+    assert.equal((await api.sandbox.pollProvider(p.slug)).status, "pending");
+    connections.push({ id: "synthetic-unrelated-" + p.slug, provider: p.slug, name: "Synthetic independent addition" });
+    now += 5000;
+    assert.equal((await api.sandbox.pollProvider(p.slug)).status, "pending", "an independently added connection is not callback completion");
+    now += 5000;
+    reply = { success: true, connection: { id, provider: p.slug, accessToken: "synthetic-must-not-leak" } };
+    const result = await api.sandbox.pollProvider(p.slug);
+    assert.equal(result.status, "success");
+    assert.equal(result.connId, id, "same connection ID can be updated without increasing the roster count");
+    assert.equal(JSON.stringify(result).includes("synthetic-must-not-leak"), false);
+    await api.sandbox.oauthCancel(p.slug);
+  }
+  assert.equal(starts.length, providers.length);
+  assert.equal(callbacks.length, providers.length * 3);
+  for (const { options } of callbacks) {
+    assert.equal(options.method, "POST");
+    assert.equal(options.credentials, "include");
+    assert.deepEqual(JSON.parse(options.body), {});
+  }
+  assert.ok(api.injected.includes("oauthCallbackPollInPage"), "the real helper runs serialized in MAIN world");
+});
+
+test("callback errors and missing, wrong or foreign connection IDs never finish successfully or retry exchange", async () => {
+  const cases = [
+    [{}, 200], [{ pending: true }, 200], [{ success: true }, 200],
+    [{ success: true, connection: { id: "" } }, 200], [{ success: true, connection: { id: "  " } }, 200],
+    [{ success: true, connection: { id: 42 } }, 200], [{ success: "true", connection: { id: "synthetic-id" } }, 200],
+    [{ success: true, connection: { id: "synthetic-id", provider: "unrelated-provider" } }, 200],
+    [{ success: true, connection: { id: "synthetic-id" }, error: "Synthetic exchange failed" }, 200],
+    [{ success: true, connection: { id: "synthetic-id" } }, 401], ["not-json", 200],
+  ];
+  for (const [reply, status] of cases) {
+    const posts = [];
+    const api = boot({ fetch: async (url, options = {}) => {
+      if (url === "/api/providers") return response(roster);
+      posts.push({ url, options }); return response(reply, status);
+    } });
+    await api.chrome.storage.session.set({ oauth_codex: { provider: "codex", kind: "redirect", status: "pending", expiresAt: Date.now() + 60000, interval: 3 } });
+    const state = await api.sandbox.pollProvider("codex");
+    assert.equal(state.status, "error", JSON.stringify(reply));
+    assert.equal(state.connId, undefined);
+    assert.ok(state.detail);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].url, "/api/oauth/codex/poll-callback");
+    assert.equal(posts[0].options.method, "POST");
+    await api.sandbox.pollProvider("codex");
+    assert.equal(posts.length, 1, "an unconfirmed exchange must not be silently replayed");
+  }
+});
+
+test("callback body timeout aborts once and leaves no successful or replayed exchange", async () => {
+  const clock = timers();
+  let signal, release, requests = 0;
+  const api = boot({ clock, fetch: async (_url, options) => {
+    requests++; signal = options.signal;
+    return { ...response({}), json: () => new Promise((resolve) => { release = resolve; }) };
+  } });
+  const pending = api.inPage("oauthCallbackPollInPage", ["codex", "Synthetic unconfirmed exchange"]);
+  await tick();
+  assert.ok(signal && release);
+  clock.fire();
+  const result = await pending;
+  assert.equal(result.error, "Synthetic unconfirmed exchange");
+  assert.equal(result.success, undefined);
+  assert.equal(signal.aborted, true);
+  assert.equal(requests, 1);
+  assert.equal(clock.pending.size, 0);
+  release({ success: true, connection: { id: "synthetic-too-late" } });
+  await tick();
+  assert.equal(result.success, undefined);
+  assert.equal(requests, 1);
+});
+
+test("only source-enabled token imports reach import-token; generic credential blobs never reach a write endpoint", async () => {
+  const posts = [];
+  const api = boot({ fetch: async (url, options = {}) => {
+    if (url === "/api/providers") return response(roster);
+    posts.push({ url, options });
+    return response({ connection: { id: "synthetic-imported", accessToken: "synthetic-do-not-return" } });
+  } });
+  const supported = api.sandbox.OMNI_OAUTH.filter((p) => p.tokenImport && !p.dashboardOnly);
+  assert.ok(supported.some((p) => p.slug === "devin-cli"));
+  assert.ok(supported.some((p) => p.slug === "devin-desktop"));
+  for (const p of supported) {
+    const n = posts.length;
+    const result = await api.sandbox.oauthImport(p.slug, "  synthetic-token-import  ");
+    assert.equal(result.ok, true, p.slug);
+    assert.equal(result.id, "synthetic-imported");
+    assert.equal(JSON.stringify(result).includes("synthetic-do-not-return"), false);
+    assert.equal(posts.length, n + 1);
+    assert.equal(posts[n].url, `/api/oauth/${p.slug}/import-token`);
+    assert.equal(posts[n].options.method, "POST");
+    assert.deepEqual(JSON.parse(posts[n].options.body), { token: "synthetic-token-import", connectionId: null });
+    const blob = await api.sandbox.oauthImport(p.slug, "omniroute-cred-v1.synthetic-only");
+    assert.equal(blob.ok, false);
+    assert.equal(blob.dashboardOnly, true);
+    assert.equal(posts.length, n + 1, "unsupported blobs must not be forwarded or imported as tokens");
+  }
+});
+
+test("specialized providers return unknown without model-list or chat requests", async () => {
+  const requests = [];
+  const api = boot({ fetch: async (url) => { requests.push(url); throw new Error("Unexpected request for specialized probe"); } });
+  const specialized = api.sandbox.OMNI_CATALOG.filter((p) => p.probeKind === "dashboard");
+  assert.ok(specialized.some((p) => p.slug === "google-pse-search"));
+  for (const p of specialized) {
+    assert.equal((await api.sandbox.runProbe(p.slug)).alive, null, p.slug);
+    assert.equal((await api.sandbox.probeModel([{ id: p.slug + "/synthetic-nonchat" }], p.slug)).alive, null, p.slug);
+  }
+  const ids = Array.from(specialized.slice(0, 2), (p) => p.slug);
+  const result = await api.sandbox.probeAll(ids, false);
+  for (const id of ids) {
+    assert.equal(result.results[id].alive, null);
+    assert.equal(api.chrome.storage.local._dump()["probe_" + id].alive, null);
+  }
+  assert.deepEqual(requests, [], "specialized capability gating happens before any synthetic fetch");
+  assert.deepEqual(api.injected, []);
+});
+
+for (const direct of [false, true]) {
+  const pathLabel = direct ? "Chrome direct" : "serialized MAIN-world";
+  test(`model capability metadata survives the models message and mixed-service probes prefer explicit chat (${pathLabel})`, async () => {
+    const models = [
+      { id: "openai/synthetic-embedding", owned_by: "openai", type: "embedding", supported_endpoints: ["embeddings"], api_format: "openai", supported_in_api: true },
+      { id: "openai/synthetic-responses-only", owned_by: "openai", type: "chat", supported_endpoints: ["responses"], api_format: "openai-responses", supported_in_api: true },
+      { id: "openai/synthetic-disabled-chat", owned_by: "openai", type: "chat", supported_endpoints: ["chat"], supported_in_api: false },
+      { id: "openai/synthetic-legacy", owned_by: "openai" },
+      { id: "openrouter/synthetic-foreign-chat", owned_by: "openrouter", type: "chat", supported_endpoints: ["chat"] },
+      { id: "openai/synthetic-chat", owned_by: "openai", type: "chat", supported_endpoints: ["chat", "responses"], api_format: "openai", supported_in_api: true },
+    ];
+    const reads = [], completions = [];
+    const api = boot({ direct, fetch: async (url, options = {}) => {
+      if (url.endsWith("/v1/models")) {
+        reads.push(url);
+        assert.equal(options.method || "GET", "GET");
+        return response({ data: models.map((model) => ({ ...model, fixtureOnly: "synthetic-unneeded-field" })) });
+      }
+      assert.equal(url, (direct ? "http://127.0.0.1:20128" : "") + "/v1/chat/completions");
+      assert.equal(options.method, "POST");
+      completions.push(JSON.parse(options.body));
+      return response({ choices: [{ message: { content: "Synthetic chat answer" } }] });
+    } });
+    const listed = await api.message({ action: "models" });
+    assert.equal(listed.ok, true);
+    assert.deepEqual(structuredClone(listed.models), models, "the popup receives capability fields, not just model IDs, and no unrelated server fields");
+    const probe = await api.sandbox.runProbe("openai");
+    assert.equal(probe.alive, true);
+    assert.equal(probe.model, "openai/synthetic-chat", "embedding/Responses-only/disabled/foreign rows are excluded and explicit chat wins over a preceding legacy row");
+    assert.deepEqual(completions.map((body) => body.model), ["openai/synthetic-chat"]);
+    assert.deepEqual(reads, [(direct ? "http://127.0.0.1:20128" : "") + "/v1/models"], "cached models retain the capability metadata used by the probe");
+    if (direct) assert.deepEqual(api.injected, []);
+    else assert.deepEqual(api.injected, ["fetchModelsInPage", "chatProbeInPage"]);
+  });
+
+  test(`explicit non-chat or unavailable models return unknown without a completion (${pathLabel})`, async () => {
+    const models = [
+      { id: "openai/synthetic-responses-only", type: "chat", supported_endpoints: ["responses"] },
+      { id: "openai/synthetic-embedding", type: "embedding" },
+      { id: "openai/synthetic-audio", type: "audio" },
+      { id: "openai/synthetic-image", type: "image" },
+      { id: "openai/synthetic-disabled-chat", type: "chat", supported_endpoints: ["chat"], supported_in_api: false },
+      { id: "openai/synthetic-no-endpoints", type: "chat", supported_endpoints: [] },
+      { id: "openai/synthetic-malformed-endpoints", supported_endpoints: "chat" },
+      { id: "openrouter/synthetic-other-provider", type: "chat", supported_endpoints: ["chat"] },
+    ];
+    const requests = [];
+    const api = boot({ direct, fetch: async (url, options = {}) => {
+      requests.push({ url, method: options.method || "GET" });
+      assert.equal(url, (direct ? "http://127.0.0.1:20128" : "") + "/v1/models", "a non-chat model must never trigger a completion request");
+      return response({ data: models });
+    } });
+    const probe = await api.sandbox.realProbe("openai");
+    assert.equal(probe.alive, null, "missing chat capability is unknown, not a failed credential");
+    assert.equal(probe.model, undefined);
+    assert.equal(api.chrome.storage.local._dump().probe_openai.alive, null);
+    assert.deepEqual(requests, [{ url: (direct ? "http://127.0.0.1:20128" : "") + "/v1/models", method: "GET" }]);
+  });
+
+  test(`legacy model rows without capability fields still support a chat probe (${pathLabel})`, async () => {
+    const posts = [];
+    const api = boot({ direct, fetch: async (url, options = {}) => {
+      if (url.endsWith("/v1/models")) return response({ data: [{ id: "openai/synthetic-legacy" }] });
+      assert.equal(url, (direct ? "http://127.0.0.1:20128" : "") + "/v1/chat/completions");
+      assert.equal(options.method, "POST");
+      posts.push(JSON.parse(options.body).model);
+      return response({ choices: [{ message: { content: "Synthetic legacy answer" } }] });
+    } });
+    const probe = await api.sandbox.runProbe("openai");
+    assert.equal(probe.alive, true);
+    assert.equal(probe.model, "openai/synthetic-legacy");
+    assert.deepEqual(posts, ["openai/synthetic-legacy"], "legacy fallback is retained without trying multiple completions");
+  });
+}

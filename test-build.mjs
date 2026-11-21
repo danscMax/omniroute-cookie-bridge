@@ -1,4 +1,4 @@
-// Offline packaging regressions: execute only the generator/build tools in disposable copies.
+// Offline packaging regressions in disposable copies. AST generation has its own test-generator suite.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -6,12 +6,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runInNewContext } from 'node:vm';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const LOOPBACK = 'http://127.0.0.1/*';
 const PAYLOAD = ['providers.gen.js', 'providers.js', 'background.js', 'popup.html', 'popup.css', 'popup.js', 'content-aistudio.js'];
-const INPUTS = ['manifest.json', 'package.json', 'gen-providers.mjs', 'build.mjs', ...PAYLOAD];
+const DEVELOPMENT = ['gen-providers.mjs', 'provider-source.mjs', 'provider-capabilities.mjs', 'provider-coverage.json'];
+const INPUTS = ['manifest.json', 'package.json', 'build.mjs', ...DEVELOPMENT, ...PAYLOAD];
 const ASSETS = ['icons', '_locales'];
 const json = (path) => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -35,42 +35,34 @@ function snapshot(root, paths) {
 function withFixture(run) {
   const sourcePaths = [...INPUTS, ...ASSETS.flatMap((dir) => files(ROOT, dir))];
   const before = snapshot(ROOT, sourcePaths);
-  const temp = mkdtempSync(join(process.env.BRIDGE_TEST_TMPDIR || tmpdir(), 'bridge-build-'));
+  const parent = process.env.BRIDGE_TEST_TMPDIR || tmpdir();
+  const temp = mkdtempSync(join(parent, 'bridge-build-'));
   const repo = join(temp, 'extension');
-  const omni = join(temp, 'registry');
   mkdirSync(repo);
   try {
     for (const file of INPUTS) copyFileSync(join(ROOT, file), join(repo, file));
     for (const dir of ASSETS) cpSync(join(ROOT, dir), join(repo, dir), { recursive: true });
-    put(omni, 'open-sse/services/tokenExtractionConfig.ts', `
-config("fixture-web", "Fixture Web", "https://chat.example.test/login", "https://chat.example.test", [{ type: "cookie", name: "session" }], "Fixture instructions");
-config("fixture-shared", "Shared host", "https://aistudio.google.com/login", "https://aistudio.google.com", [], "Fixture instructions");
-`);
-    put(omni, 'src/shared/constants/providers/apikey/gateways.ts', 'export const APIKEY_PROVIDERS_GATEWAYS = { fixture: { id: "fixture-key", name: "Fixture Key", website: "https://keys.example.test", hasFree: true } };\n');
-    put(omni, 'src/lib/oauth/providers/fixture-oauth.ts', 'export const provider = { id: "fixture-oauth", flowType: "device_code" };\n');
-    // Do not run global npm discovery or inherit provider/proxy configuration.
-    const env = { PATH: '', OMNI_ROOT: omni, SCRIPTS_ROOT: temp, APPDATA: temp, HOME: temp, USERPROFILE: temp, TEMP: temp, TMP: temp };
-    for (const key of ['SystemRoot', 'WINDIR', 'ComSpec']) {
-      if (process.env[key]) env[key] = process.env[key];
-    }
-    const execute = (script) => {
-      const result = spawnSync(process.execPath, [join(repo, script)], {
+    // Only the absolute Node executable is invoked. No npm discovery, registry or proxy settings.
+    const env = { PATH: '', APPDATA: temp, HOME: temp, USERPROFILE: temp, TEMP: temp, TMP: temp };
+    for (const key of ['SystemRoot', 'WINDIR', 'ComSpec']) if (process.env[key]) env[key] = process.env[key];
+    const execute = () => {
+      const result = spawnSync(process.execPath, [join(repo, 'build.mjs')], {
         cwd: repo, env, encoding: 'utf8', timeout: 15000,
       });
       assert.ifError(result.error);
-      assert.equal(result.signal, null, `${script} terminated by signal`);
+      assert.equal(result.signal, null, 'build terminated by signal');
       return result;
     };
-    run({ repo, omni, execute });
+    run({ repo, execute });
   } finally {
     rmSync(temp, { recursive: true, force: true });
     assert.deepEqual(snapshot(ROOT, sourcePaths), before, 'real source files must remain byte-identical');
   }
 }
 
-function succeeds(execute, script) {
-  const result = execute(script);
-  assert.equal(result.status, 0, `${script}\n${result.stdout}\n${result.stderr}`);
+function succeeds(execute) {
+  const result = execute();
+  assert.equal(result.status, 0, `build.mjs\n${result.stdout}\n${result.stderr}`);
 }
 
 function loopbackPermissions(manifest, label) {
@@ -83,7 +75,7 @@ function verifyBuild(repo, source) {
   for (const browser of ['chrome', 'firefox']) {
     const out = join(repo, 'build', browser);
     assert.deepEqual(files(out), [...payloadPaths, 'manifest.json'].sort(), `${browser}: only runtime files packaged`);
-    assert.deepEqual(snapshot(out, payloadPaths), snapshot(repo, payloadPaths), `${browser}: payload bytes preserved`);
+    assert.deepEqual(snapshot(out, payloadPaths), snapshot(repo, payloadPaths), `${browser}: full generated catalog and runtime payload preserved byte-for-byte`);
     const built = json(join(out, 'manifest.json'));
     const expected = { ...source };
     if (browser === 'chrome') {
@@ -105,56 +97,22 @@ test('shared manifest has a portless literal loopback permission and matching pa
   loopbackPermissions(manifest, 'source');
 });
 
-test('both browser packages preserve sources and exclude development files on rebuild', () => {
+test('both browser builds isolate runtime files, preserve the catalog and rebuild byte-idempotently', () => {
   withFixture(({ repo, execute }) => {
-    for (const path of ['node_modules/fixture/index.js', 'tests/fixture.js', 'test-fixture.mjs', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'package-lock.json']) {
+    for (const path of ['node_modules/fixture/index.js', 'tests/fixture.js', 'test-fixture.mjs', 'AGENTS.md', 'CLAUDE.md', 'README.md', 'TESTING.md', 'package-lock.json', '.git/fixture']) {
       put(repo, path, 'development-only fixture\n');
     }
     const sourcePaths = files(repo);
     const before = snapshot(repo, sourcePaths);
-    succeeds(execute, 'build.mjs');
+    succeeds(execute);
+    const outputPaths = files(join(repo, 'build'));
+    const first = snapshot(join(repo, 'build'), outputPaths);
     for (const browser of ['chrome', 'firefox']) put(repo, `build/${browser}/stale.txt`, 'stale output');
-    succeeds(execute, 'build.mjs');
-    assert.deepEqual(snapshot(repo, sourcePaths), before, 'build must not modify source files');
+    succeeds(execute);
+    assert.deepEqual(files(join(repo, 'build')), outputPaths, 'rebuild removes stale output files');
+    assert.deepEqual(snapshot(join(repo, 'build'), outputPaths), first, 'rebuild is byte-idempotent');
+    assert.deepEqual(snapshot(repo, sourcePaths), before, 'build must not modify source or generator inputs');
     verifyBuild(repo, json(join(repo, 'manifest.json')));
-  });
-});
-
-test('real generator uses fixture registries, is idempotent, and packages consistent permissions', () => {
-  withFixture(({ repo, omni, execute }) => {
-    const original = json(join(repo, 'manifest.json'));
-    const preservedPaths = files(repo).filter((path) => !['manifest.json', 'providers.gen.js'].includes(path));
-    const before = snapshot(repo, preservedPaths);
-    const registryPaths = files(omni);
-    const registryBefore = snapshot(omni, registryPaths);
-    succeeds(execute, 'gen-providers.mjs');
-    const generatedPaths = ['manifest.json', 'providers.gen.js'];
-    const first = snapshot(repo, generatedPaths);
-    succeeds(execute, 'gen-providers.mjs');
-    assert.deepEqual(snapshot(repo, generatedPaths), first, 'generation must be byte-idempotent');
-    assert.deepEqual(snapshot(repo, preservedPaths), before, 'generator must preserve other source files');
-    assert.deepEqual(snapshot(omni, registryPaths), registryBefore, 'registry inputs must remain unchanged');
-    const generated = json(join(repo, 'manifest.json'));
-    assert.deepEqual({ ...generated, host_permissions: original.host_permissions }, original, 'only required host permissions may change');
-    const context = { module: { exports: {} } };
-    runInNewContext(readFileSync(join(repo, 'providers.gen.js'), 'utf8'), context, { timeout: 1000 });
-    const catalog = JSON.parse(JSON.stringify(context.module.exports));
-    assert.deepEqual(catalog.apikey.map((provider) => provider.slug), ['fixture-key']);
-    assert.deepEqual(catalog.oauth, [{ slug: 'fixture-oauth', label: 'fixture-oauth', flowType: 'device_code' }]);
-    assert.ok(catalog.web.some((provider) => provider.slug === 'fixture-web'));
-    assert.ok(catalog.web.some((provider) => provider.slug === 'fixture-shared'));
-    assert.deepEqual(catalog.web.find((provider) => provider.slug === 'fixture-web').perms,
-      ['https://chat.example.test/*', 'https://*.example.test/*', 'https://example.test/*']);
-    assert.deepEqual(catalog.web.find((provider) => provider.slug === 'fixture-shared').perms, ['https://aistudio.google.com/*']);
-    assert.ok(!generated.host_permissions.includes('https://*.google.com/*'));
-    const fixed = [LOOPBACK, 'https://aistudio.google.com/*'];
-    const webHosts = [...new Set(catalog.web.flatMap((provider) => provider.perms))];
-    assert.deepEqual(generated.host_permissions, [...fixed, ...webHosts.filter((host) => !fixed.includes(host)).sort()]);
-    loopbackPermissions(generated, 'generated');
-    const beforeBuild = snapshot(repo, files(repo));
-    succeeds(execute, 'build.mjs');
-    assert.deepEqual(snapshot(repo, Object.keys(beforeBuild)), beforeBuild, 'packaging must preserve generated sources');
-    verifyBuild(repo, generated);
   });
 });
 
@@ -163,22 +121,27 @@ test('version drift fails before creating either browser package', () => {
     const pkg = json(join(repo, 'package.json'));
     pkg.version = '0.0.0';
     put(repo, 'package.json', JSON.stringify(pkg));
-    const result = execute('build.mjs');
+    const result = execute();
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /version drift/);
     assert.ok(!existsSync(join(repo, 'build')), 'failed validation must not emit packages');
   });
 });
 
-test('port-qualified loopback regression fails before creating either browser package', () => {
+for (const mode of ['missing', 'port-qualified', 'mixed']) test(`invalid ${mode} loopback permissions preserve existing packages`, () => {
   withFixture(({ repo, execute }) => {
+    succeeds(execute);
+    const outputPaths = files(join(repo, 'build'));
+    const before = snapshot(join(repo, 'build'), outputPaths);
     const manifest = json(join(repo, 'manifest.json'));
     manifest.host_permissions = manifest.host_permissions.filter((host) => !host.startsWith('http:'));
-    manifest.host_permissions.unshift('http://127.0.0.1:20128/*');
+    if (mode === 'mixed') manifest.host_permissions.unshift(LOOPBACK);
+    if (mode !== 'missing') manifest.host_permissions.unshift('http://127.0.0.1:20128/*');
     put(repo, 'manifest.json', JSON.stringify(manifest));
-    const result = execute('build.mjs');
+    const result = execute();
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /portless loopback permission/);
-    assert.ok(!existsSync(join(repo, 'build')), 'failed validation must not emit packages');
+    assert.deepEqual(files(join(repo, 'build')), outputPaths);
+    assert.deepEqual(snapshot(join(repo, 'build'), outputPaths), before, 'validation must precede removal of either existing package');
   });
 });

@@ -1,0 +1,6645 @@
+{
+  "provenance": {
+    "ref": "e3c1531afd07d5e06f7ffab658584a7ae2e3627e",
+    "sha256": "670271d98218b10466f79b06a943b11c2f96fe739ba169309564f2e125d6cb1c",
+    "files": [
+      {
+        "file": "open-sse/executors/huggingchat.ts",
+        "sha256": "6dcea7e387fbfb49b94deed0fec1139e82a38b1d5be26b18d4892b78f55566e5"
+      },
+      {
+        "file": "open-sse/executors/notion-web.ts",
+        "sha256": "b1bf5f90f095d0251535f50b017db22e37e89737eab01e5404249208bb03dea4"
+      },
+      {
+        "file": "open-sse/executors/notrack-web/cookie.ts",
+        "sha256": "005811df74b35f7388b3ed7884068b8e64c61a5375632022399a4c8d9bcf4237"
+      },
+      {
+        "file": "open-sse/executors/poe-web.ts",
+        "sha256": "312541e6a841c0f0aec88ba83c618bf3d96d19529a44520eb569b1406a265c1e"
+      },
+      {
+        "file": "open-sse/executors/promptql.ts",
+        "sha256": "d80b09f877193d2bfb36ca64c5ed8fbb89d54020bc77fb85e22882e1e921719d"
+      },
+      {
+        "file": "open-sse/executors/v0-vercel-web.ts",
+        "sha256": "f1b99a94723a35b265bca8f0c56eda922d2e8bfad150d570a3b9d8e4da1c8488"
+      },
+      {
+        "file": "open-sse/executors/venice-web-auth.ts",
+        "sha256": "96efe3bb188d50906f7e39200389dac3fab8a3901c7977f4611d593d2042d62e"
+      },
+      {
+        "file": "open-sse/executors/yuanbao-web.ts",
+        "sha256": "dfed9d354849616b06eb306701b5e32a9ad27f58a5127a6f9e15dcc9cd2b6a61"
+      },
+      {
+        "file": "open-sse/executors/zenmux-free.ts",
+        "sha256": "70c49369f8ee9c438498f13f79964953653989b397b27cc1834ac66513c82c3f"
+      },
+      {
+        "file": "open-sse/services/chatplaygroundAuth.ts",
+        "sha256": "629924e179a3456d363fbba49144c425b93ee099fdd24d7cae441e075ad22504"
+      },
+      {
+        "file": "open-sse/services/chatplaygroundModels.ts",
+        "sha256": "685a53064b55b78858b6602094e001d35233fd8f48ebb94cc3428bab1c57f17e"
+      },
+      {
+        "file": "open-sse/services/conolAuth.ts",
+        "sha256": "55e4adc06ce80696ba34616675eb28696d47d9c37aca2aa5b1499da3a6f8e028"
+      },
+      {
+        "file": "open-sse/services/syntxAuth.ts",
+        "sha256": "be87d96778d2ce938ddd793e8dda9ebd89d94a40fe3a1b80fd6289a44f95d786"
+      },
+      {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "sha256": "df5ffb76eeed1f2326ea93aefa5413c97184e7820d7bdce3d60ba5df4ce02bd3"
+      },
+      {
+        "file": "src/app/api/oauth/[provider]/[action]/route.ts",
+        "sha256": "8e69e53a9fd6f13eb51fc70dd1381970e48417a1574cc5c965501e41c54b4570"
+      },
+      {
+        "file": "src/lib/oauth/providers/agy.ts",
+        "sha256": "4e3775585e0423a020135b456f946422156aaa5b326e678e5036405bebce0262"
+      },
+      {
+        "file": "src/lib/oauth/providers/antigravity.ts",
+        "sha256": "3a1acbf5e74df6e5a12929dc442ecc7b9452d595fc33c78650c4abcd4f4b9070"
+      },
+      {
+        "file": "src/lib/oauth/providers/claude.ts",
+        "sha256": "4333ad3a2a0554e4d239269eadab13bf55db8385c7b37a779979d5c206c4af12"
+      },
+      {
+        "file": "src/lib/oauth/providers/cline.ts",
+        "sha256": "eebb15d61fd665cd2a75422e94bb65b22733a94ac9e42ed886c5e330cd62708e"
+      },
+      {
+        "file": "src/lib/oauth/providers/codebuddy-cn.ts",
+        "sha256": "12252bcfa93887696e67a4b3e6533c9f0964428dbd50429ad4659fc1d538c118"
+      },
+      {
+        "file": "src/lib/oauth/providers/codebuddy-intl.ts",
+        "sha256": "211ff5804bc0c8482250220ffc2d0d746f38e52483cb04e1aab5459763712c98"
+      },
+      {
+        "file": "src/lib/oauth/providers/codex.ts",
+        "sha256": "ad0cd380f4d31bf7d76577aa1c528853a02ff8af7552bdfbad36b062683288ba"
+      },
+      {
+        "file": "src/lib/oauth/providers/copilot-m365-web.ts",
+        "sha256": "00d62c4c0ac827cfd95444ff4de269b13a90b61d40f3d645acff1f24b00303e3"
+      },
+      {
+        "file": "src/lib/oauth/providers/cursor.ts",
+        "sha256": "43b0a5243a665998e0049f668e33e364030bf96e2093597e753d6a17bb82d9bc"
+      },
+      {
+        "file": "src/lib/oauth/providers/devin-desktop.ts",
+        "sha256": "5b32e3a2f5cdf37b271ea59c4749067387796cbc70d10b36d60f13e84b2df273"
+      },
+      {
+        "file": "src/lib/oauth/providers/freebuff.ts",
+        "sha256": "1273f74c5319097212b594452d31908937176f5bc76ce44850cfc9794face05f"
+      },
+      {
+        "file": "src/lib/oauth/providers/ghe-copilot.ts",
+        "sha256": "61dc15e01ae66df97219d2f7ecaf3717421258b2fa87feefba2fa85b5c462913"
+      },
+      {
+        "file": "src/lib/oauth/providers/github.ts",
+        "sha256": "6768cd7ba2abf4f4a44135dbf4dd27b3cc3460f5cd55f144c6e03a1595d2a6fc"
+      },
+      {
+        "file": "src/lib/oauth/providers/gitlab-duo.ts",
+        "sha256": "6030339601e3e2d61696a7b0ab95d8bdc608012df7d4ce47de1419979da73681"
+      },
+      {
+        "file": "src/lib/oauth/providers/grok-cli.ts",
+        "sha256": "802762775b6188dfe47b2d41f909b10d2f1d30ef09118b8d72930957f4876fd9"
+      },
+      {
+        "file": "src/lib/oauth/providers/index.ts",
+        "sha256": "1006292bf4ec50d4d40e795e3b6eaeef27f1bad53fadb3b7417fdc88e0e805ae"
+      },
+      {
+        "file": "src/lib/oauth/providers/kilocode.ts",
+        "sha256": "096a25da9da238530e35061e26308f377d235d4e59adb5ad4c6c6301669548c2"
+      },
+      {
+        "file": "src/lib/oauth/providers/kimi-coding.ts",
+        "sha256": "58b85ae75d7cdad1abbcb5b7ea4527da212bbd74d820783e9fcf2a4efe97b5bc"
+      },
+      {
+        "file": "src/lib/oauth/providers/kiro.ts",
+        "sha256": "98d0bf11f7f330f03fba2d86245b492b387b58e20683a413b4b4702cbc0b51dc"
+      },
+      {
+        "file": "src/lib/oauth/providers/megabrain.ts",
+        "sha256": "2d4857276a408b28dd8596dba2e733bf7dbb015acd4a71ba3e4a55003ebd7e89"
+      },
+      {
+        "file": "src/lib/oauth/providers/minimax-code.ts",
+        "sha256": "b8133f8ed7a1d8db9a020f453cf790759e32252b79a44df1ddf7bb225686a6ec"
+      },
+      {
+        "file": "src/lib/oauth/providers/muse-code.ts",
+        "sha256": "ed161792e64917ef2cb889270aa7e862f1891eff1c16ef1b0acfd853df59d999"
+      },
+      {
+        "file": "src/lib/oauth/providers/openference.ts",
+        "sha256": "094f6f3aa0322a2ebbf5b286177a788f43b1600571a5df0bf38a3dcbfad41f0e"
+      },
+      {
+        "file": "src/lib/oauth/providers/qoder.ts",
+        "sha256": "7ee9b2b40d189d89df32cf26d4e296280144bcee2ff6d22bf26c99f43a3d4b3e"
+      },
+      {
+        "file": "src/lib/oauth/providers/renderhour.ts",
+        "sha256": "37ef5d8f9f4779fe29cea817b0aa59a812009932a63b576c8a5b0f05b7a42ff9"
+      },
+      {
+        "file": "src/lib/oauth/providers/trae.ts",
+        "sha256": "fa9590c9dbcad4285a125ff6824d21f17806460b797f80014f7da8c3700a714d"
+      },
+      {
+        "file": "src/lib/oauth/providers/workbuddy.ts",
+        "sha256": "c79f9776b933515e73700a00eac6b07dca8cc089a7a1a0fe8bbe1d5063a90fff"
+      },
+      {
+        "file": "src/lib/oauth/providers/xai-oauth.ts",
+        "sha256": "313ec615fe5474ec1835bc1db3a2ad8706aa7e6ce6b3d90dfbe6b2017da3bd2f"
+      },
+      {
+        "file": "src/lib/oauth/providers/zed-hosted.ts",
+        "sha256": "f558ad3b5e01798d2ec71ac9c00a5135052d15c9be01a0985495f48750b8ce60"
+      },
+      {
+        "file": "src/lib/oauth/providers/zed.ts",
+        "sha256": "61045d1e3e0eda0b160a1834881e959fec5d2340a242cf8f46b63fa9ccd17820"
+      },
+      {
+        "file": "src/lib/providers/catalog.ts",
+        "sha256": "88f9e0cdcf50212d32787fa4619e4c38af466a9aac4f859aa8aa89fd8b9fa8d3"
+      },
+      {
+        "file": "src/lib/providers/validation/webProvidersA.ts",
+        "sha256": "0fe3210e0e18e2193d7eb8cddf273375985611d6549e98f3dd7fbbf031ea1458"
+      },
+      {
+        "file": "src/lib/providers/validation/webProvidersB.ts",
+        "sha256": "08e6a386081f1a263564100a2637752eb3889579a5004c1855f06c2aaeaacf7a"
+      },
+      {
+        "file": "src/lib/providers/webCookieAuth.ts",
+        "sha256": "807bdef73458800c8d2eab916012c8aa423427391a0fab1ed4c3832f615fc45d"
+      },
+      {
+        "file": "src/shared/constants/gitlabDuoSetupMessage.ts",
+        "sha256": "8b711358b25aa394979aad62ce1d65e4ace87e6a265ec8bb8b3e72b5c2951b77"
+      },
+      {
+        "file": "src/shared/constants/providers.ts",
+        "sha256": "54add8081ee815574b6bf21d4097775d7ff463b60abe748880c1e4830993e328"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/ainetcafe.ts",
+        "sha256": "84961ce617aa112ffb31ab608fe14a20d6be226d5fb4bb60973079eac75056a3"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/beatapi.ts",
+        "sha256": "a4b55b5e414c18c02be1279989b3a57bd9db84b2f57a3df9b30ad3d204605d3e"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/empiriolabs.ts",
+        "sha256": "c6552a790a8451a4a20ef1794c3f6680f840ca49a32a55322476915d1e04bf28"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "sha256": "4ec18487b41924f5aeaf9ee0bf93c946a9edfe27c3dde7011a506df7d61c0190"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "sha256": "b0a6dd8c9f4f42eaa89fb37b60a35c5c3a5baf7d4abc9e442e14959dd5e51874"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "sha256": "226482b06c1d1cbfc415ce38646a0ebd20ce79d64cedf15e5fa73cf9a1c7c568"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/index.ts",
+        "sha256": "f3f1e311d1c35fb38b9fcaf912fbd27fb597daa5132ecbce75e7b9977c910109"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "sha256": "f3188f42aa4c5b5c03de6235e036fa90507f80547cf8a64263f6b9c79f3ec5cb"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/onomeo.ts",
+        "sha256": "b7ce74ec5d22d47be5f736182f9bcdba2faea11811fdb84fa49ae20570ce360a"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "sha256": "6af059daedc8b219c7a241b687ae41523a6901ede54579695e99f0abe8a8f088"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "sha256": "49f2faf261ce71297ecf36abeff06d2fff4cd99d7a49351de24f3f9f251632bd"
+      },
+      {
+        "file": "src/shared/constants/providers/apikey/unifically.ts",
+        "sha256": "08f3474a642aa37cabfcf2aff721f3cc0faa37543e471761bb35863ba8dd588a"
+      },
+      {
+        "file": "src/shared/constants/providers/audio.ts",
+        "sha256": "61a89982361293551cb8a2f8abbeba4b94167d77ade44cd46ed423a28e5bbd22"
+      },
+      {
+        "file": "src/shared/constants/providers/cloud-agent.ts",
+        "sha256": "4fbec6aafadd8727756a0630ff793fda2e9293081c16a9cb272abfee67831b9e"
+      },
+      {
+        "file": "src/shared/constants/providers/local.ts",
+        "sha256": "1082012ccd041e032918e3ee819e08064d7235ff5f0ad1c5402bc987d9b6d3f1"
+      },
+      {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "sha256": "2519888127b77244285afb24a166768d3d1a2919f6eb85aba2702e772ba10935"
+      },
+      {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "sha256": "537269b8d0a5104f40df963e5e17f337361e2383ad4d6d9663e2aa6bb8ac1628"
+      },
+      {
+        "file": "src/shared/constants/providers/search.ts",
+        "sha256": "cf252787e7ecebdc0d0a6e3011b17705a7bf98a7392bd91c30d55a9af4cb7d2e"
+      },
+      {
+        "file": "src/shared/constants/providers/system.ts",
+        "sha256": "3279fdc2c1cafe184f2bc7b93e3acd6a3490f7ec620321d51f9dc9bcc169cf52"
+      },
+      {
+        "file": "src/shared/constants/providers/upstream-proxy.ts",
+        "sha256": "b87e390db810cb29cb3b975328f4f51505d09147410438fc273e1e06db1ecdfd"
+      },
+      {
+        "file": "src/shared/constants/providers/web-cookie-chatplayground.ts",
+        "sha256": "45bee114c501f6f7ff9a0e426e7b85e24611ce397015ac85bcad5ef676b86534"
+      },
+      {
+        "file": "src/shared/constants/providers/web-cookie-notrack.ts",
+        "sha256": "c8ba7473a69ff4ff92098a33fadf9fd8e1c9aec1d314b425f286c89ef58309ad"
+      },
+      {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "sha256": "4603367571da139f3d745aec1012bb361d92f998dc4b6d004eee8cd2f2a8f25f"
+      }
+    ],
+    "capabilitiesSha256": "f67934e85a71c6b8f3c3dc25cc21c5b72deecb8fd4b65094dceb1a5ce48ee41b"
+  },
+  "total": 394,
+  "sections": [
+    {
+      "name": "NOAUTH_PROVIDERS",
+      "category": "no-auth",
+      "count": 10,
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "OAUTH_PROVIDERS",
+      "category": "oauth",
+      "count": 31,
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 7
+      }
+    },
+    {
+      "name": "APIKEY_PROVIDERS",
+      "category": "apikey",
+      "count": 262,
+      "source": {
+        "file": "src/shared/constants/providers/apikey/index.ts",
+        "line": 16
+      }
+    },
+    {
+      "name": "WEB_COOKIE_PROVIDERS",
+      "category": "web-cookie",
+      "count": 37,
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 8
+      }
+    },
+    {
+      "name": "LOCAL_PROVIDERS",
+      "category": "local",
+      "count": 15,
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "SEARCH_PROVIDERS",
+      "category": "search",
+      "count": 21,
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "AUDIO_ONLY_PROVIDERS",
+      "category": "audio",
+      "count": 12,
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "UPSTREAM_PROXY_PROVIDERS",
+      "category": "upstream-proxy",
+      "count": 2,
+      "source": {
+        "file": "src/shared/constants/providers/upstream-proxy.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "CLOUD_AGENT_PROVIDERS",
+      "category": "cloud-agent",
+      "count": 3,
+      "source": {
+        "file": "src/shared/constants/providers/cloud-agent.ts",
+        "line": 5
+      }
+    },
+    {
+      "name": "SYSTEM_PROVIDERS",
+      "category": "system",
+      "count": 1,
+      "source": {
+        "file": "src/shared/constants/providers/system.ts",
+        "line": 5
+      }
+    }
+  ],
+  "excludedExtraction": [
+    {
+      "slug": "volcengine-console",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 157
+      },
+      "reason": "Not registered in the provider catalog"
+    },
+    {
+      "slug": "duckduckgo-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 226
+      },
+      "reason": "Registered as no-auth; not a web-cookie connection"
+    },
+    {
+      "slug": "t3-chat-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 255
+      },
+      "reason": "Not registered in the provider catalog"
+    },
+    {
+      "slug": "veoaifree-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 313
+      },
+      "reason": "Registered as no-auth; not a web-cookie connection"
+    },
+    {
+      "slug": "chatglm-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 327
+      },
+      "reason": "Not registered in the provider catalog"
+    },
+    {
+      "slug": "xiaomimimo-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 341
+      },
+      "reason": "Not registered in the provider catalog"
+    },
+    {
+      "slug": "manus-web",
+      "source": {
+        "file": "open-sse/services/tokenExtractionConfig.ts",
+        "line": 355
+      },
+      "reason": "Not registered in the provider catalog"
+    }
+  ],
+  "providers": [
+    {
+      "slug": "360ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 398
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "9router",
+      "category": "upstream-proxy",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/upstream-proxy.ts",
+        "line": 22
+      },
+      "metadata": [
+        "website"
+      ]
+    },
+    {
+      "slug": "adapta-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 207
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports the named session-cookie value.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersB.ts",
+          "line": 109
+        }
+      ]
+    },
+    {
+      "slug": "adobe-firefly",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 443
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Media setup can require additional IMS/session state beyond a Bearer token. Use the dashboard flow.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 443
+        }
+      ]
+    },
+    {
+      "slug": "agentrouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 58
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "agnes",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 477
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "agnes-cn",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 490
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "agy",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 98
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "ai21",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 219
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "aihorde",
+      "category": "no-auth",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 181
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": false
+    },
+    {
+      "slug": "aimlapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1001
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ainative",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1396
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ainetcafe",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/ainetcafe.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "aion",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1413
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "alibaba",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 166
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "alibaba-cn",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 178
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "amazon-q",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 126
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "ant-ling",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 542
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "anthropic",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 62
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "antigravity",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 149
+      },
+      "metadata": [],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "anyapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 176
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "anysearch-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 77
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "api-airforce",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 672
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "apmix",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 597
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "arcee-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 287
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "assemblyai",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 16
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "auggie",
+      "category": "no-auth",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 81
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "dashboard",
+      "bulk": false
+    },
+    {
+      "slug": "auriko",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 529
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "auto",
+      "category": "system",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/system.ts",
+        "line": 6
+      },
+      "metadata": []
+    },
+    {
+      "slug": "aws-polly",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 86
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "azure-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 19
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "azure-openai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": false
+    },
+    {
+      "slug": "bai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1073
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "baichuan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 330
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "baidu",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 287
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "bailian-coding-plan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 62
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "baseten",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 256
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "bazaarlink",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 697
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "beatapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/beatapi.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "bedrock",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 34
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "bigmodel",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 38
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "black-forest-labs",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 206
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "blackbox",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 98
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "blackbox-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 83
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersA.ts",
+          "line": 493
+        }
+      ]
+    },
+    {
+      "slug": "bluesminds",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1163
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "brave-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 41
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "byteplus",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 439
+      },
+      "metadata": [
+        "website",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "bytez",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 393
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cartesia",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 46
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cerebras",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 80
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cerebrium",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 340
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "charm-hyper",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 44
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "chat-oripe",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 577
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "chatanywhere",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 497
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "chatgpt",
+      "category": "oauth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 8
+      },
+      "metadata": [
+        "authHint"
+      ]
+    },
+    {
+      "slug": "chatgpt-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 9
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires Playwright storage-state JSON and connection-bound browser setup; a Cookie header is not accepted.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "slug": "chatgpt-web-codex",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 24
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires connection-bound browser validation and storage state. Complete the ChatGPT import in the dashboard.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "slug": "chatplayground",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie-chatplayground.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures a current Clerk Bearer JWT. Durable cookie-based renewal requires dashboard setup.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/services/chatplaygroundAuth.ts",
+          "line": 109
+        },
+        {
+          "file": "open-sse/services/chatplaygroundModels.ts",
+          "line": 23
+        }
+      ]
+    },
+    {
+      "slug": "cheaperinference",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 31
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "chenzk",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1314
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "chutes",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1127
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "clarifai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 208
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "claude",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 139
+      },
+      "metadata": [],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "claude-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 115
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersB.ts",
+          "line": 150
+        }
+      ]
+    },
+    {
+      "slug": "cline",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 282
+      },
+      "metadata": [
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "clinepass",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 295
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "cliproxyapi",
+      "category": "upstream-proxy",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/upstream-proxy.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website"
+      ]
+    },
+    {
+      "slug": "cloudcode-one",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 449
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cloudflare-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 137
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cloudflare-playground",
+      "category": "no-auth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 44
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ]
+    },
+    {
+      "slug": "clova-studio",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 518
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "codebuddy-cn",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 335
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "codebuddy-intl",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 349
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "codestral",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 241
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "codex",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 159
+      },
+      "metadata": [],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "codex-app-server",
+      "category": "no-auth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 137
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ]
+    },
+    {
+      "slug": "codex-cloud",
+      "category": "cloud-agent",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/cloud-agent.ts",
+        "line": 28
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "codex-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cohere",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 170
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "comfyui",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 202
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "command-code",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 87
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": false
+    },
+    {
+      "slug": "conol-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 472
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/services/conolAuth.ts",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "slug": "context7",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 245
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "copilot-m365-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 160
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true,
+      "oauthSetup": "dashboard",
+      "capture": "dashboard",
+      "captureReason": "Use native Microsoft sign-in. This flow needs account-specific Chathub identity and a server-issued login transaction.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 160
+        }
+      ]
+    },
+    {
+      "slug": "copilot-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 146
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures the Bearer token from an authenticated site request.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersB.ts",
+          "line": 338
+        }
+      ]
+    },
+    {
+      "slug": "coze",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 384
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "crof",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 687
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "cursor",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 189
+      },
+      "metadata": [],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "cursor-api",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 353
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "dahl",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 775
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "daoxe",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1621
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "databricks",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 183
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "datarobot",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 193
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 339
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deepai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 325
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deepgram",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deepinfra",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 198
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deepseek",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 143
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "deepseek-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 131
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures the Bearer token from an authenticated site request.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersA.ts",
+          "line": 107
+        }
+      ]
+    },
+    {
+      "slug": "demonroute",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1606
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "devin",
+      "category": "cloud-agent",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/cloud-agent.ts",
+        "line": 17
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "devin-cli",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 323
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "devin-cli-agentic",
+      "category": "no-auth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ]
+    },
+    {
+      "slug": "devin-desktop",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 309
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "dgrid",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 626
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "dify",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 252
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "digitalocean",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 454
+      },
+      "metadata": [
+        "website",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "dit",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1239
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "docker-model-runner",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 146
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "doubao",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 412
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "doubao-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 348
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires session cookies and additional browser-specific request context. Use the provider's dashboard import.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 348
+        }
+      ]
+    },
+    {
+      "slug": "duckduckgo-web",
+      "category": "no-auth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 24
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ]
+    },
+    {
+      "slug": "dxnt",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 433
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "electronhub",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 192
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "elevenlabs",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 36
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "empiriolabs",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/empiriolabs.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "empower",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1099
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "eurouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 290
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "exa-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 53
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "factory",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1149
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "fal-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 186
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "fastrouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 160
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "featherless-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 282
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "fenayai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1087
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "firecrawl",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 90
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "fireworks",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 68
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "fishaudio",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 56
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "free-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 609
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "freeaiapikey",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1193
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "freebuff",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 395
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "freeinference",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 593
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "freemodel-dev",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1178
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "freetheai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 796
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "friendliai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 294
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "g4f-gemini",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 832
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "g4f-groq",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 812
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "g4f-nvidia",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 892
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "g4f-ollama",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 872
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "g4f-pollinations",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 852
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "galadriel",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 204
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gemini",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 72
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gemini-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 53
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersB.ts",
+          "line": 222
+        }
+      ]
+    },
+    {
+      "slug": "getgoapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1039
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ghe-copilot",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 18
+      },
+      "metadata": [
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "gigachat",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 255
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gisoo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1636
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "github",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 169
+      },
+      "metadata": [],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "gitlab",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 130
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gitlab-duo",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 177
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "gitlawb",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 949
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gitlawb-gmi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 963
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "gladia",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 98
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "glm",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 18
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "glm-cn",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 28
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "glmt",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 51
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "google-pse-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 107
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": false
+    },
+    {
+      "slug": "greenpt",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 271
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "grok-cli",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 73
+      },
+      "metadata": [
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "grok-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 39
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/webCookieAuth.ts",
+          "line": 119
+        }
+      ]
+    },
+    {
+      "slug": "grokified",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 364
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "groq",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 85
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "haiper",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 62
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "hcnsec",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 462
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "helixmind",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1529
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "helyxai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 513
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "heroku",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 173
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "hetzner",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 352
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "huggingchat",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 272
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/huggingchat.ts",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "slug": "huggingface",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 186
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "hyperagent",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 457
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "The executor accepts Cookie headers, but the required session-cookie names are not specified in the source.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 457
+        }
+      ]
+    },
+    {
+      "slug": "hyperbolic",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 149
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ideogram",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 84
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "iflytek",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 315
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "inception",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 316
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "inference-net",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 316
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "inner-ai",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 192
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "The validator requires the token and account email. Use the dashboard to supply both.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 192
+        }
+      ]
+    },
+    {
+      "slug": "internlm",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 530
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "inworld",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 76
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "jina-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 155
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "jina-reader",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 293
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "jules",
+      "category": "cloud-agent",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/cloud-agent.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "keenable-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 140
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kenari",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1328
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kie",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 36
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kilo-gateway",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 725
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kilocode",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 253
+      },
+      "metadata": [
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "kimi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 95
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kimi-coding",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 237
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "kimi-coding-apikey",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 109
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kimi-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 234
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "kimi-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 333
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures the Bearer token from an authenticated site request.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersA.ts",
+          "line": 47
+        }
+      ]
+    },
+    {
+      "slug": "kiro",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 113
+      },
+      "metadata": [
+        "freeNote"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "lambda-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 210
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "laozhang",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1050
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "lemonade",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 90
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "leonardo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 73
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "linkup-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 153
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "liquid",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 301
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "literouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 255
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "llama-cpp",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 118
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "llamafile",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 104
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "llamagate",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 939
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "llm-kiwi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 239
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "llm7",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 923
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "llmgateway",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 208
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "lm-studio",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 48
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "lmarena",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 222
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires provider-specific browser setup beyond the named session cookie. Use the dashboard import.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 222
+        }
+      ]
+    },
+    {
+      "slug": "logfare",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1551
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "longcat",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 190
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "lyceum",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 224
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "magnific",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 95
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "maritalk",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 261
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "maxai",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 516
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires access token, device ID and user identity from the provider-specific sign-in flow.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 516
+        }
+      ]
+    },
+    {
+      "slug": "megabrain",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 270
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "meganova-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 353
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "meta-llama",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 182
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "minimax",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 123
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "minimax-cn",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 133
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "minimax-code",
+      "category": "no-auth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 119
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "mistral",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 133
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "mixedbread",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 280
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "mixlayer",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 369
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "mlx-gemma",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "mlx-qwen",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 20
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "mnn-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 338
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "modal",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 95
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "modelscope",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 423
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "monsterapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 405
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "moonshot",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 203
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "morph",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 192
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "muse-code",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 380
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "muse-spark-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 98
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires the session cookie plus separate WebSocket authorization; cookie capture alone is incomplete.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "slug": "naga-ac",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1497
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "naga-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 561
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 989
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nanogpt",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 977
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nara",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1447
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "navy",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1376
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nebius",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 109
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nimble-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 118
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nlpcloud",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nomic",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 266
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "notion-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 423
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports the named session-cookie value.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/notion-web.ts",
+          "line": 175
+        }
+      ]
+    },
+    {
+      "slug": "notrack-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie-notrack.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/notrack-web/cookie.ts",
+          "line": 35
+        }
+      ]
+    },
+    {
+      "slug": "nous-research",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 271
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "novita",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1015
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nscale",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 244
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nube",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 121
+      },
+      "metadata": [
+        "website",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "nvidia",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 97
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "oci",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 64
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ofoxai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 465
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ollama-cloud",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 175
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ollama-local",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 34
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "ollama-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 223
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "oneminai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 12
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "onomeo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/onomeo.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "oobabooga",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 174
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "openadapter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1222
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "openai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "opencode-go",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 761
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "opencode-server",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 62
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "opencode-zen",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 747
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "openference",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 47
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "openference-api",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 39
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "openrouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 100
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "openvecta",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 24
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "opper",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 113
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "orcarouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 659
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "ovhcloud",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 163
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "parallel-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 129
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "paraloncloud",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 162
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "perplexity",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 145
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "perplexity-agent",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 155
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "perplexity-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 18
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "perplexity-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 69
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports the named session-cookie value.",
+      "captureEvidence": [
+        {
+          "file": "src/lib/providers/validation/webProvidersA.ts",
+          "line": 388
+        }
+      ]
+    },
+    {
+      "slug": "piapi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1028
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "pioneer",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 32
+      },
+      "metadata": [
+        "website",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "plamo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 570
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "playht",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 66
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "poe",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1113
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "poe-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 289
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/poe-web.ts",
+          "line": 43
+        }
+      ]
+    },
+    {
+      "slug": "poixe-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 545
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "pollinations",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 46
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "poolside",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 52
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "predibase",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 376
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "promptql",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 409
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures the playground Bearer JWT. Project claims must be present; DDN-only tokens do not support chat. Use dashboard setup for project overrides or renewal.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/promptql.ts",
+          "line": 95
+        }
+      ]
+    },
+    {
+      "slug": "publicai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 268
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "qianfan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "qiniu",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 644
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "qoder",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 85
+      },
+      "metadata": [
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": false,
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "qwen-cloud",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 73
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "qwen-cloud-token-plan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 84
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "recraft",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 216
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "regolo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1483
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "reka",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 16
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "renderhour",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 62
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true,
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "replicate",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 328
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "requesty",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 128
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "rev-ai",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 109
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "routeway",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1430
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "runcrate",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 220
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "runwayml",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 22
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sambanova",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 232
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sap",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 79
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "sarvam",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 556
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "scaleway",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 151
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sdwebui",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 188
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "sealion",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 503
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "searchapi-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 164
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "searxng-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 186
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "seekai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1588
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "segmind",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 236
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sensenova",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 426
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "serper-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 29
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "siliconflow",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 136
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "snowflake",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 223
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "dashboard",
+      "bulk": true
+    },
+    {
+      "slug": "soniox",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 26
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sparkdesk",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 447
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "speechmatics",
+      "category": "audio",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/audio.ts",
+        "line": 120
+      },
+      "metadata": [
+        "website",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "speka",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 385
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "stability-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 196
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "stepfun",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 359
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "sumopod",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1284
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "synthetic",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 714
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "syntx",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 501
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "token",
+      "captureReason": "Captures the Bearer token from an authenticated site request.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/services/syntxAuth.ts",
+          "line": 9
+        }
+      ]
+    },
+    {
+      "slug": "t3-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 175
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires the Cookie header plus local-storage convex-session-id.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 175
+        }
+      ]
+    },
+    {
+      "slug": "tabitoken",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1572
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tavily-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 65
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tencent",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 301
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tencent-aistudio-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 256
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "The executor accepts Cookie headers, but the required session-cookie names are not specified in the source.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 256
+        }
+      ]
+    },
+    {
+      "slug": "thebai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1061
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tinycms-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 377
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Uses local-storage app-config-uuid and a custom header, not Cookie or Bearer capture.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 377
+        }
+      ]
+    },
+    {
+      "slug": "tinyfish",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 310
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "together",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "notice"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "token-kiosk",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1270
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tokenharbor",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1358
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tokenmarket",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1343
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tokenreply",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 401
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "tokenrouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1253
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "topaz",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 226
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "trae",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 225
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "triton",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 132
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "twinmind",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 486
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Use the dashboard to import the IndexedDB access/refresh-token record and configure renewal.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 486
+        }
+      ]
+    },
+    {
+      "slug": "typesafe",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 172
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "typhoon",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 583
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "uc",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 537
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires provider-specific session and user fields from the email sign-in flow.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 537
+        }
+      ]
+    },
+    {
+      "slug": "uc-direct",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 48
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "udio",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 109
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "uncloseai",
+      "category": "no-auth",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 161
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice",
+        "freeNote"
+      ]
+    },
+    {
+      "slug": "unifically",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/unifically.ts",
+        "line": 6
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "unorouter",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 72
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "upstage",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 251
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "v0-vercel",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 120
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "v0-vercel-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 315
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/services/tokenExtractionConfig.ts",
+          "line": 281
+        },
+        {
+          "file": "open-sse/executors/v0-vercel-web.ts",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "slug": "venice",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 231
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "venice-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 302
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports the named session-cookie value.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/venice-web-auth.ts",
+          "line": 41
+        }
+      ]
+    },
+    {
+      "slug": "veoaifree-web",
+      "category": "no-auth",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 67
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": false
+    },
+    {
+      "slug": "vercel-ai-gateway",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 912
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "vertex",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 112
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": false
+    },
+    {
+      "slug": "vertex-partner",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 125
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "dashboard",
+      "bulk": false
+    },
+    {
+      "slug": "vllm",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 76
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "void-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1513
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "volcengine",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 223
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "volcengine-agent-plan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 233
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "volcengine-coding-plan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 244
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "voyage-ai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/specialty-media.ts",
+        "line": 142
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "wafer",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 736
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "wandb",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/inference-hosts.ts",
+        "line": 306
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "watsonx",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/enterprise-cloud.ts",
+        "line": 49
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "workbuddy",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 363
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "writer",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 330
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "x-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 199
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "x5lab",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1299
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "xai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/frontier-labs.ts",
+        "line": 116
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "xai-oauth",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 30
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "inline"
+    },
+    {
+      "slug": "xiaomi-mimo",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 265
+      },
+      "metadata": [
+        "website"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "xiaomi-mimo-token-plan",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 275
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "xinference",
+      "category": "local",
+      "onboarding": "dashboard",
+      "source": {
+        "file": "src/shared/constants/providers/local.ts",
+        "line": 160
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ]
+    },
+    {
+      "slug": "xkiro",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1465
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "xquik-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 211
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "y-api",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 317
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "yi",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 344
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "yolo-auto",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 417
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "youcom-search",
+      "category": "search",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/search.ts",
+        "line": 175
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "yuanbao-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 240
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/yuanbao-web.ts",
+          "line": 114
+        }
+      ]
+    },
+    {
+      "slug": "zai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/regional.ts",
+        "line": 155
+      },
+      "metadata": [
+        "website",
+        "apiHint"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "zai-web",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 392
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "dashboard",
+      "captureReason": "Requires a local-storage token and the provider's dashboard/browser transport setup.",
+      "captureEvidence": [
+        {
+          "file": "src/shared/constants/providers/web-cookie.ts",
+          "line": 392
+        }
+      ]
+    },
+    {
+      "slug": "zcode",
+      "category": "no-auth",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/noauth.ts",
+        "line": 101
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "notice"
+      ],
+      "keySetup": "dashboard",
+      "bulk": false
+    },
+    {
+      "slug": "zed",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 199
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "zed-hosted",
+      "category": "oauth",
+      "onboarding": "oauth",
+      "source": {
+        "file": "src/shared/constants/providers/oauth.ts",
+        "line": 211
+      },
+      "metadata": [
+        "website",
+        "authHint"
+      ],
+      "oauthSetup": "dashboard"
+    },
+    {
+      "slug": "zenmux",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 1205
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "zenmux-free",
+      "category": "web-cookie",
+      "onboarding": "web",
+      "source": {
+        "file": "src/shared/constants/providers/web-cookie.ts",
+        "line": 362
+      },
+      "metadata": [
+        "website",
+        "authHint",
+        "freeNote"
+      ],
+      "capture": "cookie",
+      "captureReason": "Imports a Cookie header containing the required session cookies.",
+      "captureEvidence": [
+        {
+          "file": "open-sse/executors/zenmux-free.ts",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "slug": "zerolimitai",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 481
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    },
+    {
+      "slug": "zylo-api",
+      "category": "apikey",
+      "onboarding": "apikey",
+      "source": {
+        "file": "src/shared/constants/providers/apikey/gateways.ts",
+        "line": 144
+      },
+      "metadata": [
+        "website",
+        "apiHint",
+        "freeNote"
+      ],
+      "keySetup": "inline",
+      "bulk": true
+    }
+  ]
+}

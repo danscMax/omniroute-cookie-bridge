@@ -20,7 +20,7 @@ if (pkg.version !== root.version) {
   throw new Error(`version drift: manifest.json=${root.version} vs package.json=${pkg.version} — bump both`);
 }
 
-// Reject generator/source drift before replacing either build. Firefox cannot use port-qualified patterns;
+// Validate before replacing either build. Firefox cannot use port-qualified match patterns;
 // the permission covers loopback ports, while runtime URLs still target only :20128.
 if (!root.host_permissions?.includes('http://127.0.0.1/*') ||
     root.host_permissions.some((host) => host.startsWith('http://127.0.0.1:'))) {

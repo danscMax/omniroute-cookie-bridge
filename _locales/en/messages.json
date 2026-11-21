@@ -3,7 +3,7 @@
     "message": "OmniRoute Bridge"
   },
   "ext_description": {
-    "message": "Brings every OmniRoute provider (:20128) into one window: web-session capture (incl. HttpOnly cookies), API-key entry (170+), all OAuth flows (device code / browser login / token paste). An honest live check of every connection plus background health monitoring. The catalog is generated from OmniRoute's own source."
+    "message": "All OmniRoute providers in one catalog: setup guidance, supported web-session capture, API keys, OAuth and dashboard setup."
   },
   "ext_commandOpen": {
     "message": "Open OmniRoute Bridge"
@@ -201,7 +201,7 @@
     "message": "All web providers"
   },
   "web_allHint": {
-    "message": "Open the site, sign in and send any message — the session shows up at the top."
+    "message": "For providers with supported capture, open the site, sign in and send a message. Use dashboard setup for the others."
   },
   "web_thisTab": {
     "message": "this tab"
@@ -243,7 +243,7 @@
     "message": "No captured sessions yet."
   },
   "web_emptyHint": {
-    "message": "1) open a provider's site below → 2) sign in → 3) send any message — the session shows up here."
+    "message": "Choose a provider with supported capture → open its site → sign in and send a message. Captured sessions appear here; other providers use dashboard setup."
   },
   "web_openSite": {
     "message": "Open $1"
@@ -279,13 +279,13 @@
     "message": "Hide"
   },
   "key_searchPh": {
-    "message": "Search providers (170+)…"
+    "message": "Search API-key providers…"
   },
   "key_searchLabel": {
     "message": "Search API providers"
   },
   "key_hint": {
-    "message": "Pick a provider → paste the key. The key only goes to your local OmniRoute (:20128); the extension never stores it."
+    "message": "Choose a provider: paste a key here where supported, or open dashboard setup. Keys are sent only to your local OmniRoute (:20128)."
   },
   "key_getKey": {
     "message": "🔑 Open $1 to get a key ↗"
@@ -357,7 +357,7 @@
     "message": "Search OAuth providers"
   },
   "oauth_hint": {
-    "message": "Everything connects right here: device code, browser login or token paste — depending on the provider."
+    "message": "Use device code, browser login or token paste where supported. Providers needing additional parameters or custom flows use the OmniRoute dashboard."
   },
   "oauth_kindDevice": {
     "message": "device code"
@@ -393,7 +393,7 @@
     "message": "Imported: $1 of $2 accounts · failed: $3"
   },
   "oauth_broken": {
-    "message": "⚠ Unavailable — OmniRoute server error"
+    "message": "This provider needs setup on the OmniRoute dashboard."
   },
   "oauth_openAuth": {
     "message": "Open the authorization page ↗"
@@ -432,10 +432,10 @@
     "message": "Connect (browser login)"
   },
   "oauth_inDashboard": {
-    "message": "or on the dashboard ↗"
+    "message": "Open dashboard ↗"
   },
   "oauth_inDashboardTitle": {
-    "message": "Open the flow on the OmniRoute dashboard"
+    "message": "Open setup on the OmniRoute dashboard"
   },
   "oauth_connect": {
     "message": "Connect"
@@ -563,6 +563,15 @@
   "bg_unknownProvider": {
     "message": "Unknown provider"
   },
+  "bg_dashboardSetup": {
+    "message": "This provider needs setup on the OmniRoute dashboard."
+  },
+  "bg_bulkUnsupported": {
+    "message": "Bulk API-key import is unavailable for this provider. Use its setup form or the OmniRoute dashboard."
+  },
+  "bg_specializedProbe": {
+    "message": "Use a service-specific check in the OmniRoute dashboard; a chat probe cannot verify this provider."
+  },
   "bg_noCapture": {
     "message": "No captured session — open the site and send a message."
   },
@@ -632,9 +641,6 @@
   "bg_noBrowserLogin": {
     "message": "Browser login unavailable — use the dashboard"
   },
-  "bg_connReadFail": {
-    "message": "Couldn't read the current connections — try again."
-  },
   "bg_emptyToken": {
     "message": "Empty token"
   },
@@ -701,11 +707,71 @@
   "nav_oauth": {
     "message": "OAuth"
   },
+  "nav_catalog": {
+    "message": "Provider catalog"
+  },
   "nav_table": {
     "message": "Gateway table"
   },
   "nav_full": {
     "message": "Open full screen"
+  },
+  "catalog_hint": {
+    "message": "All registered providers, upstream setup notes in their original language, and supported setup actions. Capture recipes are reviewed against source code; live accounts remain unverified."
+  },
+  "catalog_category": {
+    "message": "Category"
+  },
+  "catalog_noAuth": {
+    "message": "No authentication"
+  },
+  "catalog_local": {
+    "message": "Local providers"
+  },
+  "catalog_search": {
+    "message": "Search"
+  },
+  "catalog_audio": {
+    "message": "Audio"
+  },
+  "catalog_proxy": {
+    "message": "Upstream proxies"
+  },
+  "catalog_cloudAgent": {
+    "message": "Cloud agents"
+  },
+  "catalog_system": {
+    "message": "System"
+  },
+  "catalog_noGuidance": {
+    "message": "No setup notes in the source catalog. Open the OmniRoute dashboard for this provider."
+  },
+  "catalog_endpoint": {
+    "message": "Default endpoint: $1"
+  },
+  "catalog_services": {
+    "message": "Services: $1"
+  },
+  "catalog_signup": {
+    "message": "Sign up ↗"
+  },
+  "catalog_source": {
+    "message": "View source ↗"
+  },
+  "catalog_bearer": {
+    "message": "Open site for Bearer-token capture"
+  },
+  "catalog_cookie": {
+    "message": "Open site for cookie capture"
+  },
+  "catalog_keyForm": {
+    "message": "Enter API key"
+  },
+  "catalog_revision": {
+    "message": "Source: $1"
+  },
+  "catalog_workingTree": {
+    "message": "working tree"
   },
   "dash_working": {
     "message": "working"

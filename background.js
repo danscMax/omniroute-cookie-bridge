@@ -60,7 +60,7 @@ try {
   if (chrome.webRequest.OnBeforeSendHeadersOptions?.EXTRA_HEADERS) captureOpts.push("extraHeaders");
 } catch (e) { /* Firefox exposes them without the flag */ }
 
-const CAPTURE_URLS = [...new Set(OMNI_WEB.flatMap((p) => p.perms))];
+const CAPTURE_URLS = [...new Set(OMNI_CAPTURE_WEB.flatMap((p) => p.capturePerms || p.perms))];
 const captureWrites = new Map();
 // Serialize updates per provider so concurrent XHRs / a store scan cannot replace a newer capture.
 function queueCapture(key, fn) {
@@ -70,8 +70,8 @@ function queueCapture(key, fn) {
   return task;
 }
 
-chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
-  const provider = OMNI_WEB.find((p) => p.hostRe.test(d.url));
+if (CAPTURE_URLS.length) chrome.webRequest.onBeforeSendHeaders.addListener((d) => {
+  const provider = OMNI_CAPTURE_WEB.find((p) => p.hostRe.test(d.url));
   if (!provider) return;
   const h = {};
   for (const x of (d.requestHeaders || [])) h[x.name.toLowerCase()] = x.value;
@@ -117,8 +117,9 @@ const autoAdding = new Set();
 if (chrome.cookies && chrome.cookies.onChanged) chrome.cookies.onChanged.addListener((ch) => {
   if (ch.removed || !ch.cookie) return;
   const dom = String(ch.cookie.domain || "").replace(/^\./, "");
-  for (const p of OMNI_WEB) {
-    if (p.cred.t !== "cookie" || !(p.host === dom || p.host.endsWith("." + dom) || dom.endsWith("." + p.host))) continue;
+  for (const p of OMNI_CAPTURE_WEB) {
+    const hosts = (p.captureUrls || [p.site]).map((url) => new URL(url).hostname);
+    if (p.cred.t !== "cookie" || !hosts.some((host) => host === dom || host.endsWith("." + dom) || dom.endsWith("." + host))) continue;
     LOC.get("autoadd_" + p.key).then(async (r) => {
       if (!r["autoadd_" + p.key]) return;
       await captureFromStore(p); // then the shared one-shot path checks the session and pushes
@@ -150,6 +151,7 @@ async function maybeAutoAdd(key) {
 // /login is a 404) and let the cookie watcher finish once the user logs in.
 async function loginAgain(key) {
   const p = OMNI_WEB_MAP[key]; if (!p) return { ok: false };
+  if (p.cred.t === "dashboard") return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   {
     const cap = p.cred.t === "cookie" ? await captureFromStore(p) : (await SEC.get("cap_" + key))["cap_" + key];
     if (hasSession(p, cap)) {
@@ -176,15 +178,11 @@ function toast(message) {
 }
 // Does a capture carry a known session credential? Analytics alone are not a session, and only
 // providers configured for token credentials can use a captured Bearer as their session.
-// Session cookie names the generated catalog doesn't carry (its `sources` is empty for these).
-// Auth.js v5 renamed next-auth's cookie (next-auth.session-token → authjs.session-token); accept both.
-const SESSION_COOKIE_EXTRA = {
-  huggingchat: ["hf-chat", "token"],
-  "perplexity-web": ["__Secure-authjs.session-token", "next-auth.session-token"],
-};
-const sessionNames = (p) => [...new Set((p.sources || []).filter((s) => s.type === "cookie" && s.name).map((s) => s.name).concat(SESSION_COOKIE_EXTRA[p.key] || []))];
+// Only reviewed recipe names are session evidence. Cookie requirements can be AND groups of aliases.
+const sessionNames = (p) => [...new Set((p.sources || []).filter((s) => s.type === "cookie" && s.name).map((s) => s.name))];
 // The session identity used to deduplicate captures; unknown credential formats return "".
 function sessionKey(p, cookie, token) {
+  if (p.cred?.t === "dashboard") return "";
   if (p.cred && p.cred.t === "token") return token || "";
   const names = sessionNames(p);
   if (!names.length) return "";
@@ -202,13 +200,7 @@ function missingSessionDetail(p, cap) {
   return t("bg_noSessionNames", [want.join(" / ") || (p.cred.t === "token" ? "Bearer" : "?"), have.slice(0, 14).join(", ") + (have.length > 14 ? " …" : "") || "—"]);
 }
 function hasSession(p, cap) {
-  if (!p || !cap) return false;
-  if (p.cred && p.cred.t === "token") return typeof cap.token === "string" && !!cap.token.trim();
-  const names = sessionNames(p);
-  if (!names.length) return false; // no known source format: do not claim a usable session
-  const have = new Set(String(cap.cookie || "").split(";").map((x) => x.trim()).filter((x) => /=./.test(x)).map((x) => x.slice(0, x.indexOf("="))));
-  // next-auth (Perplexity) splits a big session cookie into "<name>.0", "<name>.1", …
-  return names.some((n) => have.has(n) || have.has(n + ".0"));
+  return omniHasSession(p, cap);
 }
 const capSeen = {}; // provider key → last time ANY request carried its session (dedup-proof liveness)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -219,30 +211,118 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // capture. Sequential on purpose: parallel chat probes have wedged the local server before.
 const REFRESH_WAIT_MS = 15000;
 const COOKIE_SCAN_MS = 4000, COOKIE_QUERY_MS = 800, COOKIE_SCAN_WORKERS = 4, COOKIE_SCAN_STORES = 8;
+const COOKIE_CHUNKS = 16;
 const storeCaptures = new Map();
 let discovery = null;
 let discoveredAt = 0;
 async function captureTabs() {
   try { return await withTimeout(chrome.tabs.query({}), COOKIE_QUERY_MS, []); } catch { return []; }
 }
-function cookieQuery(q, scan) {
-  const key = JSON.stringify(q);
+function cookieQuery(q, scan, method = "getAll") {
+  const key = JSON.stringify([method, q]);
   if (!scan.queries.has(key)) {
     scan.queries.set(key, (async () => {
       const left = scan.until - Date.now();
-      if (left <= 0) return null;
-      try { return await withTimeout(chrome.cookies.getAll(q), Math.min(COOKIE_QUERY_MS, left), null); } catch { return false; }
+      // get's null means an absent cookie, not an unread chunk. Keep timeouts distinguishable.
+      const expired = method === "get" ? false : null;
+      if (left <= 0) return expired;
+      try {
+        const result = await withTimeout(chrome.cookies[method](q), Math.min(COOKIE_QUERY_MS, left), expired);
+        return Date.now() < scan.until ? result : expired;
+      } catch { return false; }
     })());
   }
   return scan.queries.get(key);
+}
+function cookieCandidateFrom(p, list, storeId) {
+  const groups = new Map();
+  for (const c of list) {
+    if (!c || typeof c.name !== "string" || typeof c.value !== "string") continue;
+    const sid = c.storeId || storeId || "";
+    if (storeId && sid !== storeId) continue;
+    const partition = c.partitionKey || {};
+    const context = c.firstPartyDomain || partition.topLevelSite
+      ? JSON.stringify([sid, c.firstPartyDomain || "", partition.topLevelSite || "", partition.hasCrossSiteAncestor ?? null]) : "";
+    const groupKey = JSON.stringify([sid, context]);
+    if (!groups.has(groupKey)) groups.set(groupKey, { storeId: sid, cookieContext: context, cookies: new Map() });
+    // getAll sorts the longest path first, just like a Cookie header's effective value.
+    const group = groups.get(groupKey);
+    if (!group.cookies.has(c.name)) group.cookies.set(c.name, c.value);
+  }
+  for (const group of groups.values()) {
+    const cookie = [...group.cookies].map(([n, v]) => n + "=" + v).join("; ");
+    if (hasSession(p, { cookie })) return { cookie, storeId: group.storeId, cookieContext: group.cookieContext };
+  }
+  return null;
+}
+// getAll filters by the cookie's domain permission; get checks the requested URL. An allowed
+// www host can therefore read a parent-domain session by name even when enumeration is empty.
+// https://developer.chrome.com/docs/extensions/reference/api/cookies#method-get
+// A singular lookup uses the default unpartitioned context, never getAll's wildcard partition /
+// firstPartyDomain options. Firefox needs an explicit empty first-party domain under FPI.
+async function namedCookiesFor(p, base, scan) {
+  if (typeof chrome.cookies.get !== "function") return [];
+  const names = sessionNames(p);
+  const required = new Set((p.cookieGroups || [names]).flat());
+  const url = new URL(base.url);
+  const queryBase = CAN_DIRECT_FETCH ? base : { ...base, firstPartyDomain: "" };
+  const sid = (c) => c.storeId || base.storeId || "";
+  const read = async (name) => {
+    if (Date.now() >= scan.until) return false;
+    const c = await cookieQuery({ ...queryBase, name }, scan, "get");
+    if (Date.now() >= scan.until || c === false) return false;
+    if (c == null) return null;
+    if (c.name !== name || typeof c.value !== "string" || (base.storeId && sid(c) !== base.storeId)) return false;
+    // A response from another context is not evidence of absence in this one.
+    if (c.firstPartyDomain || (c.partitionKey && Object.keys(c.partitionKey).length)) return false;
+    if (c.domain) {
+      const domain = c.domain.replace(/^\./, "").toLowerCase();
+      if (url.hostname !== domain && (c.hostOnly || !url.hostname.endsWith("." + domain))) return false;
+    }
+    const path = c.path || "/";
+    if (url.pathname !== path && !(url.pathname.startsWith(path) && (path.endsWith("/") || url.pathname[path.length] === "/"))) return false;
+    if (c.secure && url.protocol !== "https:") return false;
+    return c;
+  };
+  const list = [];
+  nextName: for (const name of names) {
+    if (!required.has(name)) continue;
+    const direct = await read(name);
+    if (direct === false) continue;
+    if (direct && direct.value) list.push(direct);
+    else {
+      const first = await read(name + ".0");
+      if (!first || !first.value) continue; // No usable head: try another reviewed name.
+      const chunks = [first];
+      let ended = false;
+      // Check through .16 even after a missing suffix: .0 + .2 is a gap, not a full .0 token.
+      // .16 is an overflow guard, never part of an accepted sixteen-chunk credential.
+      // An invalid family rejects this name, not a valid alternative or another AND group.
+      for (let i = 1; i <= COOKIE_CHUNKS; i++) {
+        const c = await read(name + "." + i);
+        if (c === false) continue nextName;
+        if (!c) ended = true;
+        else {
+          if (ended || i === COOKIE_CHUNKS || !c.value || sid(c) !== sid(first)) continue nextName;
+          chunks.push(c);
+        }
+      }
+      list.push(...chunks);
+    }
+    if (cookieCandidateFrom(p, list, base.storeId)) break;
+  }
+  return Date.now() < scan.until ? list : [];
 }
 // One URL + store + first-party/partition bucket is one candidate. In particular, never join
 // next-auth chunks from different containers, partitions, or login/site URL paths.
 async function cookieCandidateFor(p, scan) {
   if (!chrome.cookies || p.cred.t !== "cookie" || !sessionNames(p).length) return null;
-  const tabs = scan.tabs.filter((tb) => tb.url && p.hostRe.test(tb.url)).sort((a, b) => Number(!!b.active) - Number(!!a.active));
+  const tabs = scan.tabs.filter((tb) => {
+    if (!tb.url) return false;
+    try { return p.hostRe.test(tb.url) || new URL(tb.url).origin === new URL(p.site).origin; } catch { return false; }
+  }).sort((a, b) => Number(!!b.active) - Number(!!a.active));
   const stores = [...new Set([...tabs.map((tb) => tb.cookieStoreId).filter(Boolean), undefined])].slice(0, COOKIE_SCAN_STORES);
-  for (const storeId of stores) for (const url of [...new Set([p.site, p.loginUrl].filter(Boolean))]) {
+  for (const storeId of stores) for (const url of [...new Set((p.captureUrls || [p.site, p.loginUrl]).filter(Boolean))]) {
     if (Date.now() >= scan.until) return null;
     const base = storeId ? { url, storeId } : { url };
     let list = null;
@@ -251,24 +331,15 @@ async function cookieCandidateFor(p, scan) {
       if (list !== false) break; // retry only unsupported options, not a timeout or an empty result
     }
     if (!Array.isArray(list)) continue;
-    const groups = new Map();
-    for (const c of list) {
-      if (typeof c.name !== "string" || typeof c.value !== "string") continue;
-      const sid = c.storeId || storeId || "";
-      if (storeId && sid !== storeId) continue;
-      const partition = c.partitionKey || {};
-      const context = c.firstPartyDomain || partition.topLevelSite
-        ? JSON.stringify([sid, c.firstPartyDomain || "", partition.topLevelSite || "", partition.hasCrossSiteAncestor ?? null]) : "";
-      const groupKey = JSON.stringify([sid, context]);
-      if (!groups.has(groupKey)) groups.set(groupKey, { storeId: sid, cookieContext: context, cookies: new Map() });
-      // getAll sorts the longest path first, just like a Cookie header's effective value.
-      const group = groups.get(groupKey);
-      if (!group.cookies.has(c.name)) group.cookies.set(c.name, c.value);
-    }
-    for (const group of groups.values()) {
-      const cookie = [...group.cookies].map(([n, v]) => n + "=" + v).join("; ");
-      if (hasSession(p, { cookie })) return { cookie, storeId: group.storeId, cookieContext: group.cookieContext };
-    }
+    if (Date.now() >= scan.until) return null;
+    const enumerated = cookieCandidateFrom(p, list, storeId);
+    if (enumerated) return enumerated;
+    // Even a nonempty enumeration may omit a required parent-domain cookie. Named results
+    // form their own candidate; never supplement an incomplete enumerated partition/store.
+    const named = await namedCookiesFor(p, base, scan);
+    if (Date.now() >= scan.until) return null;
+    const candidate = cookieCandidateFrom(p, named, storeId);
+    if (candidate) return candidate;
   }
   return null;
 }
@@ -302,7 +373,7 @@ function captureFromStore(p, scan, passive = false) {
       const prev = stored[key];
       if (passive && stored[dismiss]) return prev || null;
       // Passive discovery fills missing captures; an XHR may have delivered a newer one mid-scan.
-      if ((passive && hasSession(p, prev)) || !candidate) return prev || null;
+      if ((passive && hasSession(p, prev)) || !candidate || Date.now() >= context.until) return prev || null;
       const cap = { provider: p.key, slug: p.slug, label: p.label, ...candidate, token: "", cookieCount: candidate.cookie.split(";").filter(Boolean).length, at: Date.now() };
       return saveCapture(p, cap, prev);
     });
@@ -316,7 +387,7 @@ function discoverSessions() {
   if (discoveredAt && Date.now() - discoveredAt < 15000) return Promise.resolve();
   discovery = (async () => {
     const all = await SEC.get(OMNI_WEB.flatMap((p) => ["cap_" + p.key, "dismiss_" + p.key]));
-    const providers = OMNI_WEB.filter((p) => p.cred.t === "cookie" && sessionNames(p).length && !all["dismiss_" + p.key] && !hasSession(p, all["cap_" + p.key]));
+    const providers = OMNI_CAPTURE_WEB.filter((p) => p.cred.t === "cookie" && sessionNames(p).length && !all["dismiss_" + p.key] && !hasSession(p, all["cap_" + p.key]));
     if (!providers.length || !chrome.cookies) return;
     const scan = { tabs: await captureTabs(), queries: new Map(), until: Date.now() + COOKIE_SCAN_MS };
     let i = 0;
@@ -351,6 +422,7 @@ async function refreshSessions(keys, emit = true) {
     for (let i = 0; i < keys.length; i++) {
       const p = OMNI_WEB_MAP[keys[i]];
       if (!p) continue;
+      if (p.cred.t === "dashboard") { out[p.key] = { state: "unknown", detail: t("bg_dashboardSetup") }; continue; }
       tell({ phase: "start", done: i, key: p.key });
       const start = Date.now();
       // 1) a session the browser already has: the cookie store (cookie providers) or what the open page
@@ -389,14 +461,14 @@ async function refreshSessions(keys, emit = true) {
 // Web providers that already live in OmniRoute (the ones worth refreshing unattended).
 async function knownWebKeys() {
   const { conn_slugs } = await LOC.get("conn_slugs");
-  return OMNI_WEB.filter((p) => (conn_slugs || []).includes(p.slug)).map((p) => p.key);
+  return OMNI_CAPTURE_WEB.filter((p) => (conn_slugs || []).includes(p.slug)).map((p) => p.key);
 }
 
 // ── site reachability (идея 6): is the SITE up, separately from "is my session alive" ──
 async function siteCheck(keys) {
   const out = {};
   await Promise.all(keys.map(async (k) => {
-    const p = OMNI_WEB_MAP[k]; if (!p) return;
+    const p = OMNI_WEB_MAP[k]; if (!p || !p.hostRe.test(p.site)) return;
     const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 15000); const t0 = Date.now();
     // HEAD + manual redirect, NOT mode:"no-cors": Chrome's extension SW rejects no-cors fetches outright
     // ("Failed to fetch" in 50ms — verified 2026-11-03), while host permission already exempts us from CORS.
@@ -415,7 +487,7 @@ async function cookieExpiry(keys) {
   const out = {};
   if (!chrome.cookies) return { expiry: out };
   for (const k of keys) {
-    const p = OMNI_WEB_MAP[k]; if (!p) continue;
+    const p = OMNI_WEB_MAP[k]; if (!p || p.cred.t !== "cookie") continue;
     let min = null;
     for (const s of p.sources) {
       if (s.type !== "cookie" || !s.name) continue;
@@ -458,8 +530,14 @@ async function omniVersion() {
 // Toolbar badge: RED with the count of dead connections when the last health sweep found any
 // (that's the state worth shouting about); else BLUE with the count of captured-but-unsent sessions.
 async function updateBadge() {
-  const [sec, loc] = await Promise.all([SEC.get(null), LOC.get("health_dead")]);
-  const caps = Object.keys(sec).filter((k) => k.startsWith("cap_") && sec[k]).length;
+  const [sec, loc] = await Promise.all([
+    SEC.get(OMNI_CAPTURE_WEB.map((p) => "cap_" + p.key)),
+    LOC.get(["health_dead", ...OMNI_CAPTURE_WEB.map((p) => "sent_" + p.key)]),
+  ]);
+  const caps = OMNI_CAPTURE_WEB.filter((p) => {
+    const cap = sec["cap_" + p.key];
+    return hasSession(p, cap) && !(loc["sent_" + p.key] >= cap.at);
+  }).length;
   const dead = (loc.health_dead || []).length;
   if (dead) { chrome.action.setBadgeText({ text: String(dead) }); chrome.action.setBadgeBackgroundColor({ color: "#dc2626" }); }
   else if (caps) { chrome.action.setBadgeText({ text: String(caps) }); chrome.action.setBadgeBackgroundColor({ color: "#3b6ef5" }); }
@@ -516,7 +594,7 @@ chrome.runtime.onMessage.addListener((req, sender, send) => {
     case "siteCheck": siteCheck(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
     case "cookieExpiry": cookieExpiry(req.keys || OMNI_WEB.map((p) => p.key)).then(send); return true;
     case "omniVersion": omniVersion().then(send); return true;
-    case "models": fetchModels().then((r) => send({ ok: r.ok, models: (r.models || []).map((m) => ({ id: m.id, owned_by: m.owned_by || "" })) })); return true;
+    case "models": fetchModels().then((r) => send({ ok: r.ok, models: r.models || [] })); return true;
     case "chat": chatOnce(req.model, req.messages).then(send); return true;
     case "autoAdd": LOC.set({ ["autoadd_" + req.key]: Date.now() }).then(() => send({ ok: true })); return true;
     case "loginAgain": loginAgain(req.key).then(send); return true;
@@ -708,6 +786,7 @@ async function resolveSlot(provider, cap) {
 async function sendToOmni(providerKey, name, forceNew = false) {
   const provider = OMNI_WEB_MAP[providerKey];
   if (!provider) return { ok: false, error: t("bg_unknownProvider") };
+  if (provider.cred.t === "dashboard") return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   const gw = await requireGateway(); if (gw) return gw;
   const stored = await SEC.get("cap_" + providerKey);
   const cap = stored["cap_" + providerKey];
@@ -731,15 +810,20 @@ async function sendToOmni(providerKey, name, forceNew = false) {
 async function slotFor(providerKey) {
   const provider = OMNI_WEB_MAP[providerKey];
   const { ["cap_" + providerKey]: cap } = await SEC.get("cap_" + providerKey);
-  if (!provider || !cap) return { conn: null };
+  if (!provider || !hasSession(provider, cap)) return { conn: null };
   const s = await resolveSlot(provider, cap);
   return { conn: s.conn ? { id: s.conn.id, name: s.conn.name } : null };
 }
 
 async function sendApiKeyToOmni(slug, name, apiKey, psd) {
   if (!slug) return { ok: false, error: t("bg_noProvider") };
+  const provider = OMNI_APIKEY_MAP[slug];
+  if (!provider) return { ok: false, error: t("bg_unknownProvider") };
+  if (provider.dashboardOnly) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   apiKey = (apiKey || "").trim();
-  if (!apiKey) return { ok: false, error: t("bg_emptyKey") };
+  if (!apiKey && !provider.keyOptional) return { ok: false, error: t("bg_emptyKey") };
+  const missing = (provider.extra || []).find((field) => field.required && !(typeof psd?.[field.key] === "string" && psd[field.key].trim()));
+  if (missing) return { ok: false, error: t("key_fillField", [missing.label]) };
   const gw = await requireGateway(); if (gw) return gw;
   return postApiKey(slug, (name && name.trim()) ? name.trim() : slug, apiKey, psd);
 }
@@ -771,6 +855,11 @@ function bulkApiKeyInPage(slug, entries, loginErr, invalidErr = "Invalid batch r
 }
 async function bulkAddApiKeys(slug, keys, psd) {
   if (!slug) return { ok: false, error: t("bg_noProvider") };
+  const provider = OMNI_APIKEY_MAP[slug];
+  if (!provider) return { ok: false, error: t("bg_unknownProvider") };
+  if (provider.dashboardOnly || !provider.bulk) return { ok: false, error: t("bg_bulkUnsupported") };
+  const missing = (provider.extra || []).find((field) => field.required && !(typeof psd?.[field.key] === "string" && psd[field.key].trim()));
+  if (missing) return { ok: false, error: t("key_fillField", [missing.label]) };
   if (!Array.isArray(keys) || keys.some((k) => typeof k !== "string")) return { ok: false, error: t("bg_noValidKeys") };
   const clean = keys.map((k) => k.trim()).filter(Boolean);
   if (!clean.length) return { ok: false, error: t("bg_noValidKeys") };
@@ -866,7 +955,13 @@ function fetchModelsInPage(url = "/v1/models") {
       if (!r.ok || r.redirected || !/^application\/json(?:\s*;|$)/i.test(r.headers.get("content-type") || "")) return { fetched: true, ok: false };
       const d = await r.json().catch(() => null);
       if (!d || d.error || !Array.isArray(d.data) || !d.data.every((m) => m && typeof m.id === "string" && m.id.trim())) return { fetched: true, ok: false };
-      return { fetched: true, ok: true, models: d.data.map((m) => ({ id: m.id, owned_by: typeof m.owned_by === "string" ? m.owned_by : "" })) };
+      return { fetched: true, ok: true, models: d.data.map((m) => ({
+        id: m.id, owned_by: typeof m.owned_by === "string" ? m.owned_by : "",
+        ...(typeof m.type === "string" ? { type: m.type } : {}),
+        ...(typeof m.api_format === "string" ? { api_format: m.api_format } : {}),
+        ...(typeof m.supported_in_api === "boolean" ? { supported_in_api: m.supported_in_api } : {}),
+        ...(m.supported_endpoints !== undefined ? { supported_endpoints: Array.isArray(m.supported_endpoints) ? m.supported_endpoints.filter((e) => typeof e === "string") : [] } : {}),
+      })) };
     } catch { return { fetched: true, ok: false, netErr: !ctrl.signal.aborted }; }
   })();
   const expired = new Promise((resolve) => { timer = setTimeout(() => { ctrl.abort(); resolve({ fetched: true, ok: false, state: "timeout" }); }, 4000); });
@@ -961,7 +1056,9 @@ async function chatOnce(model, messages) {
 }
 const LOGGED_OUT_RE = /\b(sign up|sign in|log in|login to)\b.{0,40}(repeat|continue|request)|войдите|зарегистрируйтесь/i;
 async function probeModel(models, slug) {
-  const m = models.find((x) => typeof x.id === "string" && x.id.startsWith(slug + "/"));
+  if (OMNI_CATALOG_MAP[slug]?.probeKind === "dashboard") return { alive: null, detail: t("bg_specializedProbe") };
+  const candidates = models.filter((x) => typeof x.id === "string" && x.id.startsWith(slug + "/") && omniCanChatModel(x));
+  const m = candidates.find((x) => x.type === "chat" || x.supported_endpoints?.includes("chat")) || candidates[0];
   if (!m) return { alive: null, detail: t("bg_noModelsForProbe") };
   for (let attempt = 0; attempt < 2; attempt++) {
     const t0 = Date.now();
@@ -986,6 +1083,7 @@ async function probeModel(models, slug) {
   return { alive: null, detail: t("bg_probeFailed") };
 }
 async function runProbe(slug) {
+  if (OMNI_CATALOG_MAP[slug]?.probeKind === "dashboard") return { alive: null, detail: t("bg_specializedProbe") };
   const mm = await fetchModels();
   if (!mm.ok) return { alive: null, detail: t("bg_noModelsAccess") };
   return probeModel(mm.models, slug);
@@ -1004,13 +1102,14 @@ let probing = false; // a probe pass is running — the unattended sweep steps a
 async function probeAll(slugs, emit = true) {
   probing = true;
   try {
-    const mm = await fetchModels();
+    const mm = slugs.some((slug) => OMNI_CATALOG_MAP[slug]?.probeKind !== "dashboard") ? await fetchModels() : { ok: true, models: [] };
     const models = mm.ok ? mm.models : [];
     const out = {};
     const now = Date.now();
     for (let i = 0; i < slugs.length; i++) {
       const slug = slugs[i];
-      out[slug] = models.length ? await probeModel(models, slug) : { alive: null, detail: mm.ok ? t("bg_noModels") : t("bg_noModelsAccess") };
+      out[slug] = OMNI_CATALOG_MAP[slug]?.probeKind === "dashboard" ? { alive: null, detail: t("bg_specializedProbe") }
+        : models.length ? await probeModel(models, slug) : { alive: null, detail: mm.ok ? t("bg_noModels") : t("bg_noModelsAccess") };
       // Persist each verdict as it lands, NOT one batch at the end: every verdict costs a real
       // completion against the provider, and an MV3 worker can be killed mid-sweep — batching traded
       // the whole run's work for saving a few microsecond-cheap storage writes.
@@ -1049,7 +1148,7 @@ async function healthSweep(force = false) {
   // Auto-repair (идея 3): a dead WEB session is often just a rotated cookie the browser already has —
   // re-capture it in a background tab before shouting. At most once per 6h per provider (tabs are visible).
   if (st.autoRepair && !refreshing) {
-    const webDead = dead.map((s) => OMNI_WEB.find((p) => p.slug === s)).filter(Boolean);
+    const webDead = dead.map((s) => OMNI_CAPTURE_WEB.find((p) => p.slug === s)).filter(Boolean);
     const rep = await LOC.get(webDead.map((p) => "repair_" + p.key));
     const due = webDead.filter((p) => !rep["repair_" + p.key] || Date.now() - rep["repair_" + p.key] > 6 * 60 * 60 * 1000);
     if (due.length) {
@@ -1111,7 +1210,7 @@ async function parkSweep(results) {
   await LOC.set({ park });
   if (changed.length) toast(t("bg_parkChanged", [changed.join(", ")]));
 }
-const providerName = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH.find((o) => o.slug === slug) || OMNI_APIKEY.find((a) => a.slug === slug) || {}).label) || slug;
+const providerName = (slug) => OMNI_CATALOG_MAP[slug]?.label || slug;
 async function unpark(slug) {
   const { park = {} } = await LOC.get("park");
   const e = park[slug]; if (!e) return { ok: true };
@@ -1157,36 +1256,38 @@ function oauthPollInPage(provider, deviceCode, codeVerifier, extraData) {
   }).then((r) => (r.ok ? r.json() : { error: "authorization_pending" })) // OmniRoute returns 200 for real verdicts; a non-200 is a transient gateway blip → keep waiting, don't kill the flow
     .catch(() => ({ error: "authorization_pending" }));
 }
-// Redirect/PKCE flows: OmniRoute starts a loopback callback server (self-completing) and we poll it —
-// same shape as device poll. Fallback = /authorize giving an authUrl that lands on OmniRoute's /callback.
+// The callback server receives the code; POST poll-callback performs the exchange and saves it.
 function oauthStartCallbackInPage(provider) {
   return fetch("/api/oauth/" + provider + "/start-callback-server", { credentials: "include" })
     .then((r) => r.ok ? r.json() : r.text().then((t) => ({ error: t || "HTTP " + r.status })))
     .catch((e) => ({ error: String(e).slice(0, 120) }));
 }
-function oauthAuthorizeInPage(provider, redirectUri) {
-  return fetch("/api/oauth/" + provider + "/authorize?redirect_uri=" + encodeURIComponent(redirectUri), { credentials: "include" })
-    .then((r) => r.ok ? r.json() : r.text().then((t) => ({ error: t || "HTTP " + r.status })))
-    .catch((e) => ({ error: String(e).slice(0, 120) }));
-}
-// Redirect completion is detected UNIVERSALLY by a new connection appearing for the provider —
-// works whether OmniRoute finished it via the loopback callback server OR its own /callback page
-// (the poll-callback endpoint only covers the former, so counting connections is the robust signal).
-function allConnCountsInPage() {
-  return fetch("/api/providers", { credentials: "include" })
-    .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((d) => { const m = {}; for (const c of (d.connections || [])) m[c.provider] = (m[c.provider] || 0) + 1; return m; })
-    .catch(() => null);
-}
-let _connCount = null; // { at, all } — short memo so baseCount + first poll + concurrent redirect flows share one read
-async function providerConnCount(provider) {
-  if (!_connCount || Date.now() - _connCount.at > 2000) {
-    const map = await runInDash(allConnCountsInPage);
-    // A real count map is { slug: number } with NO `ok` field; runInDash returns { ok:false, error } on
-    // ANY failure (timeout/inject/no-tab) — those must map to null (→ -1), NOT be read as count 0.
-    _connCount = { at: Date.now(), all: (map && typeof map === "object" && map.ok === undefined) ? map : null };
-  }
-  return _connCount.all ? (_connCount.all[provider] || 0) : -1; // -1 = couldn't read (abort/keep-pending semantics)
+async function oauthCallbackPollInPage(provider, invalidErr) {
+  const ctrl = new AbortController();
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => { ctrl.abort(); resolve({ error: invalidErr }); }, 30000);
+  });
+  const request = (async () => {
+    try {
+      const r = await fetch("/api/oauth/" + provider + "/poll-callback", {
+        method: "POST", credentials: "include", headers: { "content-type": "application/json" },
+        body: "{}", signal: ctrl.signal,
+      });
+      const d = await r.json();
+      if (!r.ok || d?.error) return { error: typeof d?.error === "string" ? d.error : invalidErr };
+      if (d?.success === true && typeof d.connection?.id === "string" && d.connection.id.trim()
+          && (!d.connection.provider || d.connection.provider === provider)) {
+        return { success: true, connection: { id: d.connection.id } };
+      }
+      if (d?.success === false && d.pending === true) return { pending: true };
+      return { error: invalidErr };
+    } catch { return { error: invalidErr }; }
+  })();
+  // The exchange consumes server-side callback state. A lost response is an unconfirmed result,
+  // never success inferred from another connection and never an automatic second exchange.
+  try { return await Promise.race([request, timeout]); }
+  finally { clearTimeout(timer); }
 }
 // Auto-import: OmniRoute reads the provider's CLI creds already stored locally on the machine.
 function oauthAutoImportInPage(provider) {
@@ -1226,12 +1327,13 @@ const OAUTH_KEY = (slug) => "oauth_" + slug;
 async function oauthStart(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
   if (!p || !p.deviceFlow) return { ok: false, error: t("bg_notDeviceFlow") };
+  if (p.dashboardOnly) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   const gw = await requireGateway(); if (gw) return gw;
   const d = await runInDash(oauthDeviceCodeInPage, [provider]);
   if (!d || d.error || !d.device_code) return { ok: false, error: (d && d.error) || t("bg_providerUnavailable") };
   // Some providers (kiro / amazon-q, AWS SSO) echo client creds back — the poll needs them.
-  const extraData = (d._clientId || d._clientSecret || d._region)
-    ? { _clientId: d._clientId, _clientSecret: d._clientSecret, _region: d._region } : null;
+  const extraData = (d._clientId || d._clientSecret || d._region || d._authMethod)
+    ? { _clientId: d._clientId, _clientSecret: d._clientSecret, _region: d._region, _authMethod: d._authMethod } : null;
   const state = {
     provider, label: p.label, kind: "device", deviceCode: d.device_code, codeVerifier: d.codeVerifier || "", extraData,
     userCode: d.user_code, verifyUrl: d.verification_uri_complete || d.verification_uri || "",
@@ -1244,28 +1346,18 @@ async function oauthStart(provider) {
   return { ok: true, userCode: state.userCode, verifyUrl: state.verifyUrl };
 }
 
-// Redirect/PKCE: open the provider auth page; OmniRoute's callback server completes it. We poll
-// poll-callback (device-like) until the connection lands. Prefer the callback server; fall back to
-// a plain /authorize whose authUrl redirects to OmniRoute's own /callback page.
+// Redirect/PKCE uses only the registered callback-server path; its poll response owns completion.
 async function oauthConnect(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
   if (!p || p.kind !== "redirect") return { ok: false, error: t("bg_notRedirect") };
+  if (p.dashboardOnly) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   const gw = await requireGateway(); if (gw) return gw;
-  let d = await runInDash(oauthStartCallbackInPage, [provider]);
-  let authUrl = d && d.authUrl;
-  if (!authUrl) {
-    const a = await runInDash(oauthAuthorizeInPage, [provider, OMNI_BASE + "/callback"]);
-    authUrl = a && a.authUrl;
-    if (!authUrl) return { ok: false, error: (a && a.error) || (d && d.error) || t("bg_noBrowserLogin") };
-  }
-  // Abort if we can't read a trustworthy baseline — a defaulted 0 would make a pre-existing
-  // connection look like a fresh success on the very next poll (false "Подключено").
-  _connCount = null; // fresh baseline read, not a memoized one
-  const baseCount = await providerConnCount(provider);
-  if (typeof baseCount !== "number" || baseCount < 0) return { ok: false, error: t("bg_connReadFail") };
+  const d = await runInDash(oauthStartCallbackInPage, [provider]);
+  const authUrl = d && d.authUrl;
+  // /callback only relays a code to a dashboard modal; without that modal no exchange owns its state.
+  if (!authUrl) return { ok: false, error: (d && d.error) || t("bg_noBrowserLogin") };
   const state = {
     provider, label: p.label, kind: "redirect", status: "pending", detail: "", verifyUrl: authUrl,
-    baseCount,
     at: Date.now(), expiresAt: Date.now() + 10 * 60 * 1000, nextPollAt: 0, interval: 3,
   };
   await SEC.set({ [OAUTH_KEY(provider)]: state });
@@ -1278,13 +1370,13 @@ async function oauthConnect(provider) {
 async function oauthImport(provider, token) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
   if (!p) return { ok: false, error: t("bg_unknownProvider") };
+  if (p.dashboardOnly || !p.tokenImport) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   token = (token || "").trim();
   if (!token) return { ok: false, error: t("bg_emptyToken") };
   if (token.length < 8) return { ok: false, error: t("bg_tokenShort") };
   const gw = await requireGateway(); if (gw) return gw;
-  // Accept EITHER a bare token (import-token) OR an exported "omniroute-cred-v1.…" blob (paste-credentials).
-  const inPage = token.startsWith("omniroute-cred-v1.") ? oauthPasteCredsInPage : oauthImportTokenInPage;
-  const r = await runInDash(inPage, [provider, token, t("bg_needLogin"), t("bg_invalidResponse")]);
+  if (token.startsWith("omniroute-cred-v1.")) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
+  const r = await runInDash(oauthImportTokenInPage, [provider, token, t("bg_needLogin"), t("bg_invalidResponse")]);
   return { ...r, slug: provider };
 }
 
@@ -1293,6 +1385,7 @@ async function oauthImport(provider, token) {
 async function oauthAutoImport(provider) {
   const p = OMNI_OAUTH.find((o) => o.slug === provider);
   if (!p) return { ok: false, error: t("bg_unknownProvider") };
+  if (!p.autoImport) return { ok: false, dashboardOnly: true, error: t("bg_dashboardSetup") };
   const gw = await requireGateway(); if (gw) return gw;
   const d = await runInDash(oauthAutoImportInPage, [provider]);
   if (d && d.error) return { ok: false, error: t("bg_omniUnreachable", [String(d.error)]) }; // runInDash-level failure (timeout/inject) ≠ "not found"
@@ -1362,6 +1455,11 @@ async function pollProvider(slug) {
   const key = OAUTH_KEY(slug);
   const { [key]: s } = await SEC.get(key);
   if (!s || s.status !== "pending") return s || null;
+  const provider = OMNI_OAUTH_MAP[slug];
+  if (!provider || provider.dashboardOnly) {
+    const done = { ...s, status: "error", detail: t("bg_dashboardSetup") };
+    await SEC.set({ [key]: done }); return done;
+  }
   if (Date.now() > s.expiresAt) {
     const done = { ...s, status: "expired", detail: t("bg_codeExpired") };
     await SEC.set({ [key]: done }); return done;
@@ -1371,17 +1469,6 @@ async function pollProvider(slug) {
   // so gate the actual /poll hit here by nextPollAt, regardless of how often pollAllOauth runs.
   const interval = s.interval || 5;
   if (s.nextPollAt && Date.now() < s.nextPollAt) return s;
-  // Redirect flows: success = a NEW connection for this provider appeared (universal signal — covers
-  // both the loopback callback server and OmniRoute's own /callback page completing the exchange).
-  if (s.kind === "redirect") {
-    const n = await providerConnCount(s.provider);
-    if (typeof n === "number" && n > (s.baseCount || 0)) {
-      const done = { ...s, status: "success", detail: t("bg_connected") };
-      await SEC.set({ [key]: done }); return done;
-    }
-    const wait = { ...s, nextPollAt: Date.now() + interval * 1000 };
-    await SEC.set({ [key]: wait }); return wait;
-  }
   // Device codes/verifiers are credentials too; an earlier successful start cannot authorize
   // forwarding them after a dashboard logout or a service replacement.
   const gw = await requireGateway();
@@ -1389,10 +1476,18 @@ async function pollProvider(slug) {
     const wait = { ...s, nextPollAt: Date.now() + interval * 1000 };
     await SEC.set({ [key]: wait }); return wait;
   }
-  // Device flow: poll the token endpoint.
-  const r = await runInDash(oauthPollInPage, [s.provider, s.deviceCode, s.codeVerifier, s.extraData]);
+  const r = s.kind === "redirect"
+    ? await runInDash(oauthCallbackPollInPage, [s.provider, t("bg_invalidResponse")], 35000)
+    : await runInDash(oauthPollInPage, [s.provider, s.deviceCode, s.codeVerifier, s.extraData]);
   if (r && r.success === true) {
-    const done = { ...s, status: "success", connId: (r.connection && r.connection.id) || s.connId, detail: t("bg_connected") };
+    const id = r.connection?.id;
+    const valid = !r.error && typeof id === "string" && !!id.trim()
+      && (!r.connection.provider || r.connection.provider === s.provider);
+    const done = { ...s, status: valid ? "success" : "error", ...(valid ? { connId: id } : {}), detail: valid ? t("bg_connected") : t("bg_invalidResponse") };
+    await SEC.set({ [key]: done }); return done;
+  }
+  if (s.kind === "redirect" && !r?.pending) {
+    const done = { ...s, status: "error", detail: r?.error || t("bg_invalidResponse") };
     await SEC.set({ [key]: done }); return done;
   }
   if (r && r.error === "slow_down") {

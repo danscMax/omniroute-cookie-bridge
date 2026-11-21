@@ -9,14 +9,18 @@
     "test:catalog": "node test-catalog.mjs",
     "test:render": "node test-render.mjs",
     "test:bg": "node test-background.mjs",
+    "test:source": "node --test test-provider-source.mjs",
+    "test:generator": "node --test test-generator.mjs",
     "test:runtime": "node --test test-runtime.mjs",
+    "test:cookies": "node --test test-cookie-discovery.mjs",
     "test:build": "node --test test-build.mjs",
     "test:browser": "node test-browser.mjs",
     "test:i18n": "node test-i18n.mjs",
-    "test": "node test-catalog.mjs && node test-render.mjs && node test-background.mjs && node --test test-runtime.mjs test-build.mjs && node test-i18n.mjs",
-    "check": "node --check background.js && node --check popup.js && node --check providers.js && node --check content-aistudio.js && node --check build.mjs && node --check gen-providers.mjs && node --check test-build.mjs && node --check test-browser.mjs && node --check test-browser-fixture.mjs"
+    "test": "node --test test-provider-source.mjs test-generator.mjs && node test-catalog.mjs && node test-render.mjs && node test-background.mjs && node --test test-runtime.mjs test-build.mjs test-cookie-discovery.mjs && node test-i18n.mjs",
+    "check": "node --check background.js && node --check popup.js && node --check providers.js && node --check providers.gen.js && node --check content-aistudio.js && node --check provider-source.mjs && node --check provider-capabilities.mjs && node --check gen-providers.mjs && node --check build.mjs && node --check test-provider-source.mjs && node --check test-generator.mjs && node --check test-catalog.mjs && node --check test-render.mjs && node --check test-background.mjs && node --check test-runtime.mjs && node --check test-build.mjs && node --check test-cookie-discovery.mjs && node --check test-browser.mjs && node --check test-browser-fixture.mjs && node --check test-harness.mjs && node --check test-i18n.mjs"
   },
   "devDependencies": {
-    "linkedom": "^0.18.0"
+    "linkedom": "^0.18.0",
+    "typescript": "6.0.3"
   }
 }

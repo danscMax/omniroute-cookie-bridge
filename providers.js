@@ -23,21 +23,9 @@ const T = (k, fb) => {
   }
 };
 
-// DeepSeek Web wants the Bearer userToken (cookie header → 502). Everyone else: OmniRoute's
-// web validators accept the full Cookie header and extract what they need themselves.
-const WEB_CRED_TOKEN = new Set(["deepseek-web"]);
-
-// Nicer display names for OAuth providers (source ids are bare slugs).
-const OAUTH_LABELS = {
-  github: "GitHub Copilot", claude: "Claude (Pro/Max)", codex: "OpenAI Codex",
-  qwen: "Qwen (OAuth)", "kimi-coding": "Kimi Coding", kiro: "Kiro", kilocode: "Kilo Code",
-  "codebuddy-cn": "CodeBuddy CN", cursor: "Cursor", "gitlab-duo": "GitLab Duo",
-  "grok-cli": "Grok CLI", trae: "Trae", windsurf: "Windsurf", zed: "Zed", "zed-hosted": "Zed Hosted",
-  antigravity: "Antigravity", cline: "Cline", qoder: "Qoder",
-};
-
 // ── web providers (with real RegExp + credential type) ──────────────────────
 const OMNI_WEB = (OMNI_GEN.web || []).map((w) => ({
+  ...w,
   key: w.slug,
   slug: w.slug,
   label: w.label,
@@ -45,10 +33,11 @@ const OMNI_WEB = (OMNI_GEN.web || []).map((w) => ({
   loginUrl: w.loginUrl || "",
   host: w.host,
   perms: w.perms,
-  hostRe: new RegExp(w.hostReSrc, "i"),
+  hostRe: new RegExp(w.hostReSrc || "(?!)", "i"),
   sources: w.sources || [],
-  cred: { t: WEB_CRED_TOKEN.has(w.slug) ? "token" : "cookie" },
+  cred: { t: w.capture || "dashboard", name: w.valueCookie || "" },
 }));
+const OMNI_CAPTURE_WEB = OMNI_WEB.filter((p) => p.cred.t === "cookie" || p.cred.t === "token");
 const OMNI_WEB_MAP = {};
 for (const p of OMNI_WEB) OMNI_WEB_MAP[p.key] = p;
 
@@ -58,6 +47,7 @@ for (const p of OMNI_WEB) OMNI_WEB_MAP[p.key] = p;
 // Engine ID (cx). Optional ones (baseUrl override) are power-user extras validated by OmniRoute.
 const APIKEY_EXTRA_FIELDS = {
   "google-pse-search": [{ key: "cx", label: "Search Engine ID (cx)", required: true, hint: "Programmable Search Engine ID" }],
+  "cloudflare-ai": [{ key: "accountId", label: "Cloudflare Account ID", required: true, hint: "Workers AI account ID (not the API token)" }],
 };
 // The generated `get` is the provider's HOMEPAGE (that's what OmniRoute's source carries) — useless when you
 // need a key and don't remember where the console hides it. Deep links straight to the "API keys" page:
@@ -89,7 +79,10 @@ const APIKEY_KEY_URL = {
   ai21: "https://studio.ai21.com/account/api-key",
 };
 const OMNI_APIKEY = (OMNI_GEN.apikey || []).map((a) => ({
-  slug: a.slug, label: a.label, get: APIKEY_KEY_URL[a.slug] || a.get, deepLink: !!APIKEY_KEY_URL[a.slug], free: !!a.free, family: a.family || T("cat_other", "Прочее"),
+  ...a,
+  get: a.deepLink ? a.get : APIKEY_KEY_URL[a.slug] || a.get,
+  deepLink: !!a.deepLink || !!APIKEY_KEY_URL[a.slug], free: !!a.free, family: a.family || T("cat_other", "Прочее"),
+  dashboardOnly: a.keySetup === "dashboard",
   extra: APIKEY_EXTRA_FIELDS[a.slug] || null,
 }));
 const OMNI_APIKEY_MAP = {};
@@ -98,10 +91,6 @@ for (const p of OMNI_APIKEY) OMNI_APIKEY_MAP[p.slug] = p;
 // ── oauth providers ─────────────────────────────────────────────────────────
 // device_code = we can drive it headless (code + poll). Others (authorization_code[_pkce],
 // import_token) need a redirect/callback or a CLI token → deep-link to the dashboard.
-// device-code providers whose OmniRoute /device-code currently 500s (verified live 2026-07-13).
-const OAUTH_BROKEN = new Set(["qwen", "codebuddy-cn"]);
-// import providers that expose a local-cred auto-import endpoint (else the "найти локально" button 404s)
-const OAUTH_AUTOIMPORT = new Set(["cursor"]);
 // providers that support bulk ZIP import of many exported accounts → their `<slug>-auth` endpoint base
 const OAUTH_ZIP = { claude: "claude-auth", codex: "codex-auth", antigravity: "agy-auth" };
 // Where the user grabs a CLI token for import_token providers (shown as a "где взять" link).
@@ -115,24 +104,77 @@ const OAUTH_TOKEN_HINT = {
 // flowType → how we drive it: device_code = code+poll; import_token = paste a token; everything else
 // (authorization_code[_pkce]) = browser redirect completed by OmniRoute's callback server (poll-callback).
 const OMNI_OAUTH = (OMNI_GEN.oauth || []).map((o) => ({
+  ...o,
   slug: o.slug,
-  label: OAUTH_LABELS[o.slug] || o.slug,
+  label: o.label || o.slug,
   flowType: o.flowType,
   kind: o.flowType === "device_code" ? "device" : o.flowType === "import_token" ? "import" : "redirect",
   deviceFlow: o.flowType === "device_code",
-  broken: OAUTH_BROKEN.has(o.slug),
-  autoImport: OAUTH_AUTOIMPORT.has(o.slug),
+  dashboardOnly: o.oauthSetup === "dashboard",
+  broken: false,
+  autoImport: false,
   zipAuth: OAUTH_ZIP[o.slug] || null,
   tokenHint: OAUTH_TOKEN_HINT[o.slug] || "",
 }));
 const OMNI_OAUTH_MAP = {};
 for (const o of OMNI_OAUTH) OMNI_OAUTH_MAP[o.slug] = o;
 
+// One directory record per registered provider, including local/no-auth/system entries.
+const OMNI_CATALOG = (OMNI_GEN.all || []).map((p) => ({
+  ...p,
+  get: OMNI_APIKEY_MAP[p.slug]?.get || p.get,
+  deepLink: OMNI_APIKEY_MAP[p.slug]?.deepLink || !!p.deepLink,
+}));
+const OMNI_CATALOG_MAP = Object.fromEntries(OMNI_CATALOG.map((p) => [p.slug, p]));
+function omniDashboardUrl(provider) {
+  const p = typeof provider === "string" ? OMNI_CATALOG_MAP[provider] : provider;
+  if (p?.category === "cloud-agent") return OMNI_BASE + "/dashboard/providers?section=cloudagent";
+  if (!p || p.category === "system" || p.category === "other") return OMNI_BASE + "/dashboard/providers";
+  return OMNI_BASE + "/dashboard/providers/" + encodeURIComponent(p.slug);
+}
+function omniMatchesProvider(p, query) {
+  const q = String(query || "").trim().toLowerCase();
+  return !q || [p.slug, p.label, p.alias, p.category, p.family, p.website, p.authHint, p.apiHint, p.notice, p.freeNote, ...(p.serviceKinds || [])]
+    .some((v) => typeof v === "string" && v.toLowerCase().includes(q));
+}
+
+// /v1/models omits capability fields on legacy chat rows. Explicit endpoint/type metadata
+// takes precedence: a responses-only or specialty model is not a chat-completions probe.
+function omniCanChatModel(model) {
+  if (!model || model.supported_in_api === false) return false;
+  if (model.supported_endpoints !== undefined) {
+    return Array.isArray(model.supported_endpoints) && model.supported_endpoints.includes("chat");
+  }
+  if (model.type && model.type !== "chat") return false;
+  return true;
+}
+
+// Auth.js can split a cookie into numbered chunks. Only concatenate a contiguous sequence
+// starting at zero from this single capture; never join different stores or partitions.
+function omniCookieValue(cookie, name) {
+  const pairs = new Map();
+  for (const part of String(cookie || "").split(";")) {
+    const raw = part.trim(), eq = raw.indexOf("=");
+    if (eq > 0 && !pairs.has(raw.slice(0, eq))) pairs.set(raw.slice(0, eq), raw.slice(eq + 1));
+  }
+  if (pairs.get(name)) return pairs.get(name);
+  const chunks = [...pairs].filter(([n]) => n.startsWith(name + ".") && /^\d+$/.test(n.slice(name.length + 1)))
+    .map(([n, value]) => [Number(n.slice(name.length + 1)), value]).sort((a, b) => a[0] - b[0]);
+  return chunks.length && chunks.every(([n, value], i) => n === i && !!value) ? chunks.map(([, v]) => v).join("") : "";
+}
+function omniHasSession(p, cap) {
+  if (!p || !cap || p.cred?.t === "dashboard") return false;
+  if (p.cred?.t === "token") return typeof cap.token === "string" && !!cap.token.trim();
+  const groups = p.cookieGroups || [(p.sources || []).filter((s) => s.type === "cookie").map((s) => s.name)];
+  return groups.length > 0 && groups.every((names) => names.some((name) => !!omniCookieValue(cap.cookie, name)));
+}
+
 // ── credential builder ──────────────────────────────────────────────────────
 function omniBuildCredential(provider, cap) {
-  const t = (provider.cred && provider.cred.t) || "cookie";
-  if (t === "token") return cap.token || cap.cookie; // deepseek: Bearer userToken, cookie fallback
-  return cap.cookie;                                 // everyone else: full Cookie header
+  if (!omniHasSession(provider, cap)) return "";
+  if (provider.cred.t === "token") return cap.token.trim();
+  if (provider.cred.name) return omniCookieValue(cap.cookie, provider.cred.name);
+  return cap.cookie;
 }
 
 // Stable per-account id from the credential (JWT id if present, else short hash). OmniRoute UPSERTS
@@ -177,7 +219,8 @@ function omniAccountEmail(cred) {
 
 if (typeof self !== "undefined") {
   Object.assign(self, {
-    OMNI_BASE, OMNI_WEB, OMNI_WEB_MAP, OMNI_APIKEY, OMNI_APIKEY_MAP, OMNI_OAUTH, OMNI_OAUTH_MAP,
+    OMNI_BASE, OMNI_WEB, OMNI_WEB_MAP, OMNI_CAPTURE_WEB, OMNI_APIKEY, OMNI_APIKEY_MAP, OMNI_OAUTH, OMNI_OAUTH_MAP,
+    OMNI_CATALOG, OMNI_CATALOG_MAP, omniDashboardUrl, omniMatchesProvider, omniCanChatModel, omniCookieValue, omniHasSession,
     omniBuildCredential, omniAccountId, omniAccountEmail, omniAccountIdStable,
   });
 }
