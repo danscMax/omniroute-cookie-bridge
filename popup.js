@@ -20,12 +20,27 @@ function applyI18n() {
 }
 applyI18n();
 function ago(ms) { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return t("popup_agoSec", [String(s)]); const m = Math.round(s / 60); if (m < 60) return t("popup_agoMin", [String(m)]); return t("popup_agoHour", [String(Math.round(m / 60))]); }
-const msg = (m) => new Promise((r) => chrome.runtime.sendMessage(m, r));
+// lastError exists only during the callback. Resolve transport failures for fire-and-forget
+// callers too; a lost reply cannot tell us whether a write happened, so never replay it.
+const msg = (m) => new Promise((resolve) => {
+  const fail = (error) => {
+    const detail = String(error?.message || error || "No response from extension background.");
+    resolve({ ok: false, error: detail, detail, transportError: true, unreachable: true });
+  };
+  try {
+    chrome.runtime.sendMessage(m, (response) => {
+      const error = chrome.runtime.lastError;
+      if (error) fail(error);
+      else if (response == null) fail();
+      else resolve(response);
+    });
+  } catch (error) { fail(error); }
+});
 // Where to send someone whose session died: the SITE. The catalog's generated loginUrls rot (perplexity.ai
 // /login is a 404 since 2026-11) and a logged-in user lands on the app from the homepage anyway.
 const loginTarget = (w) => (w && w.site) || "";
-// One label lookup across the three registries (a slug lives in exactly one of them).
-const providerLabel = (slug) => ((OMNI_WEB_MAP[slug] || OMNI_OAUTH_MAP[slug] || OMNI_APIKEY_MAP[slug] || {}).label) || slug;
+// The directory includes every registry, including providers with dashboard-only setup.
+const providerLabel = (slug) => (OMNI_CATALOG_MAP[slug] || {}).label || slug;
 
 // Firefox MV3 grants host_permissions on an ad-hoc basis, and NOT on an update that changed the set —
 // so access to 127.0.0.1 can be missing even though the manifest declares it, and executeScript into the
@@ -48,6 +63,10 @@ async function refreshHostBanner() {
 function setRes(elm, kind, text) { elm.setAttribute("aria-live", "polite"); elm.className = "res show " + kind; elm.textContent = text; } // announce results to screen readers
 function maskKey(k) { return k.length > 12 ? k.slice(0, 6) + "…" + k.slice(-4) : k; }
 const $ = (id) => document.getElementById(id);
+function isEditing(container) {
+  const active = document.activeElement;
+  return !!(active && container && container.contains(active) && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable));
+}
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
 let caps = {};              // captured web sessions (cap_<key>)
@@ -59,12 +78,14 @@ let connUnreachable = false; // true = couldn't READ connections (outage) vs gen
 let probes = {};            // persisted last probe verdict per slug
 let activeProviderKey = null;
 let serverOnline = false;
+let serverDetail = "";
+let serverState = "unreachable";
 let lastWebSig = null;
 
 // ── tabs ────────────────────────────────────────────────────────────────────
 // Rail navigation: every section is a pane; the rail buttons are a vertical WAI-ARIA tablist.
-const PANES = ["dash", "wizard", "web", "key", "oauth", "table", "chat", "set"];
-const PANE_TITLE = { dash: "nav_dash", wizard: "nav_wizard", web: "nav_web", key: "nav_key", oauth: "nav_oauth", table: "nav_table", chat: "nav_chat", set: "popup_settings" };
+const PANES = ["dash", "wizard", "web", "key", "oauth", "table", "chat", "catalog", "set"];
+const PANE_TITLE = { dash: "nav_dash", wizard: "nav_wizard", web: "nav_web", key: "nav_key", oauth: "nav_oauth", table: "nav_table", chat: "nav_chat", catalog: "nav_catalog", set: "popup_settings" };
 const tabEls = [...document.querySelectorAll(".rail .tab")];
 let curPane = "dash";
 function selectTab(tb) {
@@ -73,7 +94,8 @@ function selectTab(tb) {
   for (const pane of PANES) $("pane-" + pane).classList.toggle("hide", pane !== curPane);
   $("viewTitle").textContent = t(PANE_TITLE[curPane]);
   // The global search only means something on the catalog panes; hide it elsewhere so the view breathes.
-  document.querySelector(".gsearch").classList.toggle("hide", !["web", "key", "oauth"].includes(curPane));
+  document.querySelector(".gsearch").classList.toggle("hide", !["web", "key", "oauth", "catalog"].includes(curPane));
+  if (curPane === "catalog") renderCatalog();
   if (curPane === "wizard") renderWizard();
   if (curPane === "table") renderTable();
   if (curPane === "chat") { fillChatProviders(); renderChat(); }
@@ -96,14 +118,115 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return; // don't hijack Ctrl+1 etc.
   if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const idx = parseInt(e.key, 10) - 1;
-  if (idx >= 0 && idx < 7 && tabEls[idx]) { tabEls[idx].click(); return; }
+  if (idx >= 0 && idx < 8 && tabEls[idx]) { tabEls[idx].click(); return; }
   if (e.key === "/") {
-    if (!["web", "key", "oauth"].includes(curPane)) goPane("web");
+    if (!["web", "key", "oauth", "catalog"].includes(curPane)) goPane("catalog");
     e.preventDefault(); $("globalSearch").focus();
   }
 });
 
 // ── shared rendering helpers ────────────────────────────────────────────────
+const CATEGORY_LABEL = {
+  "no-auth": () => t("catalog_noAuth"), oauth: () => t("kind_oauth"), apikey: () => t("kind_key"),
+  "web-cookie": () => t("kind_web"), local: () => t("catalog_local"), search: () => t("catalog_search"),
+  audio: () => t("catalog_audio"), "upstream-proxy": () => t("catalog_proxy"),
+  "cloud-agent": () => t("catalog_cloudAgent"), system: () => t("catalog_system"), other: () => t("cat_other"),
+};
+const categoryLabel = (category) => (CATEGORY_LABEL[category] || CATEGORY_LABEL.other)();
+const canCapture = (slug) => !!OMNI_WEB_MAP[slug] && OMNI_WEB_MAP[slug].cred.t !== "dashboard";
+const canKey = (slug) => !!OMNI_APIKEY_MAP[slug] && !OMNI_APIKEY_MAP[slug].dashboardOnly;
+const canOauth = (slug) => !!OMNI_OAUTH_MAP[slug] && !OMNI_OAUTH_MAP[slug].dashboardOnly;
+function dashboardButton(p) {
+  const button = el("button", "ghost sm", t("oauth_inDashboard"));
+  button.title = t("oauth_inDashboardTitle");
+  button.onclick = () => chrome.tabs.create({ url: omniDashboardUrl(p) });
+  return button;
+}
+function providerGuidance(p) {
+  const box = el("div", "provider-guidance");
+  const text = [...new Set([p.authHint, p.apiHint, p.notice, p.freeNote].filter(Boolean))];
+  for (const value of text) box.append(el("p", "hint-sm", value));
+  if (!text.length) box.append(el("p", "hint-sm", t("catalog_noGuidance")));
+  if (p.localDefault) box.append(el("p", "hint-sm", t("catalog_endpoint", [p.localDefault])));
+  if (p.serviceKinds?.length) box.append(el("p", "hint-sm", t("catalog_services", [p.serviceKinds.join(", ")])));
+  const actions = el("div", "setup-actions");
+  if (p.deepLink && p.get) {
+    const key = el("button", "ghost sm getkey", t("key_getKey", [hostOf(p.get)]));
+    key.onclick = () => chrome.tabs.create({ url: p.get }); actions.append(key);
+  }
+  if (p.signupUrl) {
+    const signup = el("button", "ghost sm", t("catalog_signup"));
+    signup.onclick = () => chrome.tabs.create({ url: p.signupUrl }); actions.append(signup);
+  }
+  if (p.website) {
+    const site = el("button", "ghost sm", t("web_openSite", [hostOf(p.website)]));
+    site.onclick = () => chrome.tabs.create({ url: p.website }); actions.append(site);
+  }
+  box.append(actions);
+  const ref = OMNI_GEN.provenance?.ref;
+  if (ref && p.source?.file) {
+    const link = el("a", "source-link", t("catalog_source"));
+    link.href = "https://github.com/diegosouzapw/OmniRoute/blob/" + encodeURIComponent(ref) + "/" + p.source.file.split("/").map(encodeURIComponent).join("/") + "#L" + p.source.line;
+    link.target = "_blank"; link.rel = "noopener noreferrer"; box.append(link);
+  }
+  return box;
+}
+function focusProvider(p, pane) {
+  $("globalSearch").value = p.slug;
+  for (const id of ["webSearch", "keySearch", "oauthSearch"]) $(id).value = p.slug;
+  if (pane === "key") keyExpanded = p.slug;
+  goPane(pane); renderWeb(); keyPaneFill(); renderOauth();
+}
+const directoryOpen = new Set();
+function directoryEntry(p) {
+  const entry = el("details", "directory-entry"); entry.dataset.slug = p.slug;
+  const summary = el("summary", null, p.label);
+  summary.append(el("span", "tag", p.slug + " · " + categoryLabel(p.category))); entry.append(summary);
+  const fill = () => {
+    if (!entry.open || entry.querySelector(".directory-body")) return;
+    const body = el("div", "directory-body");
+    body.append(providerGuidance(p));
+    if (p.captureReason) body.append(el("p", "hint-sm", p.captureReason));
+    const actions = el("div", "setup-actions");
+    const web = OMNI_WEB_MAP[p.slug], key = OMNI_APIKEY_MAP[p.slug], oauth = OMNI_OAUTH_MAP[p.slug];
+    if (web && web.cred.t !== "dashboard") {
+      const open = el("button", "sm", web.cred.t === "token" ? t("catalog_bearer") : t("catalog_cookie"));
+      open.onclick = () => chrome.tabs.create({ url: web.site }); actions.append(open);
+    }
+    if (key && !key.dashboardOnly) {
+      const open = el("button", "sm", t("catalog_keyForm")); open.onclick = () => focusProvider(key, "key"); actions.append(open);
+    }
+    if (oauth && !oauth.dashboardOnly) {
+      const open = el("button", "sm", t("oauth_connect")); open.onclick = () => focusProvider(oauth, "oauth"); actions.append(open);
+    }
+    actions.append(dashboardButton(p)); body.append(actions); entry.append(body);
+  };
+  entry.open = directoryOpen.has(p.slug);
+  entry.ontoggle = () => {
+    if (!entry.isConnected) return;
+    if (entry.open) directoryOpen.add(p.slug); else directoryOpen.delete(p.slug);
+    fill();
+  };
+  fill();
+  return entry;
+}
+function renderCatalog() {
+  const select = $("catalogCategory"), selected = select.value || "";
+  if (!select.children.length) {
+    const all = el("option", null, t("flt_all")); all.value = ""; select.append(all);
+    for (const category of [...new Set(OMNI_CATALOG.map((p) => p.category))]) {
+      const option = el("option", null, categoryLabel(category)); option.value = category; select.append(option);
+    }
+  }
+  const list = OMNI_CATALOG.filter((p) => (!selected || p.category === selected) && omniMatchesProvider(p, $("globalSearch").value));
+  $("catalogCount").textContent = `${list.length}/${OMNI_CATALOG.length}`;
+  const box = $("catalogList"); box.textContent = "";
+  for (const p of list) box.append(directoryEntry(p));
+  if (!list.length) box.append(el("div", "empty", t("popup_nothingFound")));
+  $("catalogSource").textContent = t("catalog_revision", [OMNI_GEN.provenance?.ref?.slice(0, 12) || t("catalog_workingTree")]);
+}
+$("catalogCategory").addEventListener("change", renderCatalog);
+
 function connLine(slug) {
   const c = conns[slug];
   if (!c || !c.total) return null;
@@ -126,11 +249,33 @@ function showProbe(resEl, id, p, added) {
   else if (p.alive === false) setRes(resEl, "bad", `🔴 ${t("popup_probeFailed", [pre, String(p.detail)])}${age}`);
   else setRes(resEl, "mut", `⚪ ${t("popup_probeUnknown", [pre, (p && p.detail) || t("popup_noAnswer")])}`);
 }
+// Keep batch outcomes through roster re-renders. These contain counts/errors only, never keys.
+const batchResults = new Map();
+function showBatchResult(resEl, r, zip = false) {
+  const known = Number.isSafeInteger(r.added) && Number.isSafeInteger(r.failed) && Number.isSafeInteger(r.total)
+    && r.added >= 0 && r.failed >= 0 && r.added + r.failed === r.total;
+  const complete = known && r.ok === true && r.added > 0 && r.failed === 0;
+  const summary = known
+    ? (zip ? t("oauth_zipDone", [String(r.added), String(r.total), String(r.failed)]) : t("popup_batchDone", [String(r.added), String(r.total), String(r.failed)]))
+    : t("popup_batchUnknown");
+  const details = (r.errors || []).slice(0, 5).map((e) => t("popup_batchEntry", [String(e.index + 1), e.message || t("popup_error")]));
+  if (r.error) details.unshift(r.error);
+  if ((r.errors || []).length > 5) details.push(t("popup_batchMore", [String(r.errors.length - 5)]));
+  setRes(resEl, complete ? "ok" : known && r.added > 0 ? "mut" : "bad", [summary, ...details].join(" · "));
+}
+// A provider-level probe cannot verify individual batch entries. Keep the import result and
+// refresh the roster even when a response was lost after some writes succeeded.
+async function finishBatch(resEl, r, zip = false) {
+  if (r.slug) batchResults.set((zip ? "zip:" : "key:") + r.slug, r);
+  showBatchResult(resEl, r, zip);
+  await loadConnections();
+}
 // honest add → probe flow (shared by web + apikey)
 async function addAndProbe(resEl, doAdd, probeBtn) {
-  if (!serverOnline) { setRes(resEl, "bad", "⚠ " + t("popup_omniDown")); return null; }
+  if (!serverOnline) { setRes(resEl, "bad", "⚠ " + (serverDetail || t("popup_omniDown"))); return null; }
   setRes(resEl, "pend", t("popup_adding"));
   const r = await doAdd();
+  if (r && (r.batch || "added" in r)) { await finishBatch(resEl, r); return r; }
   if (!r || !r.ok) { setRes(resEl, "bad", "🔴 " + ((r && r.error) || t("popup_error"))); return r; }
   setRes(resEl, "pend", r.updated && r.connName ? t("popup_updatedProbing", [r.connName]) : t("popup_addedProbing", [r.id ? ` (${r.id.slice(0, 8)}…)` : ""]));
   const p = await msg({ action: "probe", slug: r.slug });
@@ -162,7 +307,7 @@ function webCard(p, cap) {
   if (p.key === activeProviderKey) h.append(el("span", "tag", t("web_thisTab")));
   const cc = conns[p.slug];
   if (cc && cc.bad) { card.classList.add("bad"); h.append(el("span", "warnbadge", `⚠ ${cc.bad}`)); }
-  card.append(h);
+  card.append(h, providerGuidance(p));
   // Web sessions rot in hours — warn (amber) once a capture is old enough to likely be dead.
   const capStale = Date.now() - cap.at > 6 * 60 * 60 * 1000;
   card.append(el("div", "sub" + (capStale ? " stale" : ""),
@@ -182,8 +327,7 @@ function webCard(p, cap) {
   actions.append(send, probe, dismiss); card.append(actions);
   const res = el("div", "res"); card.append(res);
   const hasOther = conns[p.slug] && conns[p.slug].total;
-  // The SW decides which connection this session refreshes (same account id / the one this browser
-  // feeds / the only one) — ask it, and SAY which one, so the user sees what gets overwritten.
+  // The SW resolves a stable account identity or the slot this browser wrote — show that target.
   let slotConn = null;
   const asNew = el("button", "ghost sm hide", t("web_asNew")); asNew.title = t("web_asNewTitle");
   actions.insertBefore(asNew, probe);
@@ -218,9 +362,9 @@ function renderWeb() {
   // wipe what's being typed. Return false so callers know NO render happened (don't advance lastWebSig).
   if (document.activeElement && $("webCaptured").contains(document.activeElement)) return false;
   const q = $("webSearch").value.trim().toLowerCase();
-  const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
+  const match = (p) => omniMatchesProvider(p, q);
   const cap = $("webCaptured"); cap.textContent = "";
-  const capd = OMNI_WEB.filter((p) => caps[p.key] && !(sentAt[p.key] >= caps[p.key].at) && match(p))
+  const capd = OMNI_CAPTURE_WEB.filter((p) => caps[p.key] && !(sentAt[p.key] >= caps[p.key].at) && match(p))
     .sort((a, b) => (a.key === activeProviderKey ? -1 : b.key === activeProviderKey ? 1 : 0));
   $("bWeb").textContent = String(OMNI_WEB.filter((p) => caps[p.key]).length);
   if (capd.length) {
@@ -261,10 +405,12 @@ function renderWeb() {
     if (caps[p.key]) chip.append(el("span", "g"));
     chip.append(document.createTextNode(p.label));
     const c = conns[p.slug]; if (c && c.total) chip.append(el("span", "cn", String(c.total)));
-    chip.title = t("web_openSite", [p.site]);
-    chip.addEventListener("click", () => chrome.tabs.create({ url: p.site }));
+    chip.title = p.cred.t === "dashboard" ? t("oauth_inDashboardTitle") : t("web_openSite", [p.site]);
+    chip.addEventListener("click", () => chrome.tabs.create({ url: p.cred.t === "dashboard" ? omniDashboardUrl(p) : p.site }));
     chips.append(chip);
   }
+  const guide = $("webGuide"); guide.textContent = "";
+  for (const p of all) guide.append(directoryEntry(OMNI_CATALOG_MAP[p.slug]));
 }
 async function sendAll(list, btn) {
   btn.disabled = true;
@@ -287,10 +433,13 @@ let keyExpanded = null; // slug of the currently expanded api-key provider
 // Inline add-form shown when a provider row is expanded.
 function keyForm(p) {
   const box = el("div", "keyform");
+  box.append(providerGuidance(p));
+  if (p.dashboardOnly) { box.append(dashboardButton(p)); return box; }
   if (p.get) {
-    const get = el("button", "ghost sm getkey", t("key_getKey", [hostOf(p.get)]));
-    get.onclick = () => chrome.tabs.create({ url: p.get });
-    box.append(get);
+    if (!p.deepLink) {
+      const get = el("button", "ghost sm getkey", t("key_getKey", [hostOf(p.get)]));
+      get.onclick = () => chrome.tabs.create({ url: p.get }); box.append(get);
+    }
     // Say what to do on that page — the user doesn't remember each console's menu.
     box.append(el("p", "hint-sm steps", p.deepLink ? t("key_stepsDeep") : t("key_stepsHome")));
   }
@@ -316,7 +465,7 @@ function keyForm(p) {
   const bulkArea = el("textarea", "hide"); bulkArea.placeholder = t("key_bulkPh"); bulkArea.rows = 4;
   const bulkToggle = el("button", "ghost sm", t("key_bulkOn"));
   bulkToggle.onclick = () => { const on = !bulkArea.classList.toggle("hide"); key.classList.toggle("hide", on); name.classList.toggle("hide", on); bulkToggle.textContent = on ? t("key_bulkOff") : t("key_bulkOn"); };
-  box.append(bulkToggle, bulkArea);
+  if (p.bulk) box.append(bulkToggle, bulkArea);
   const predict = el("div", "predict"); box.append(predict);
   const actions = el("div", "actions");
   const add = el("button", "grow sm", t("popup_add"));
@@ -324,6 +473,7 @@ function keyForm(p) {
   actions.append(add, probe); box.append(actions);
   const res = el("div", "res"); box.append(res);
   if (probes[p.slug]) { showProbe(res, null, probes[p.slug], false); probe.onclick = () => reprobe(res, p.slug, null, probe); }
+  if (batchResults.has("key:" + p.slug)) showBatchResult(res, batchResults.get("key:" + p.slug));
   function sync() {
     const k = key.value.trim();
     if (!k) { predict.className = "predict"; predict.textContent = ""; add.textContent = t("popup_add"); add.classList.remove("upd"); return; }
@@ -336,25 +486,33 @@ function keyForm(p) {
   name.addEventListener("input", sync);
   key.addEventListener("keydown", (e) => { if (e.key === "Enter") add.click(); });
   add.onclick = async () => {
-    if (!bulkArea.classList.contains("hide")) { // bulk mode: several keys at once
-      const keys = bulkArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
-      if (!keys.length) { setRes(res, "bad", t("key_pasteKeys")); return; }
-      add.disabled = true;
-      const r = await addAndProbe(res, () => msg({ action: "bulkAddApiKey", slug: p.slug, keys }), probe);
-      add.disabled = false;
-      if (r && r.ok) bulkArea.value = "";
-      return;
-    }
-    const apiKey = key.value.trim();
-    if (!apiKey) { setRes(res, "bad", t("key_pasteKey")); return; }
     const psd = {};
     for (const ef of (p.extra || [])) {
       const v = extraInputs[ef.key].value.trim();
       if (ef.required && !v) { setRes(res, "bad", t("key_fillField", [ef.label])); return; }
       if (v) psd[ef.key] = v;
     }
-    if (advBase.value.trim()) psd.baseUrl = advBase.value.trim(); // custom endpoint override
-    if (advTag.value.trim()) psd.tag = advTag.value.trim();       // routing group tag
+    if (advBase.value.trim()) psd.baseUrl = advBase.value.trim();
+    if (advTag.value.trim()) psd.tag = advTag.value.trim();
+    if (!bulkArea.classList.contains("hide")) { // bulk mode: several keys at once
+      const keys = bulkArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
+      if (!keys.length) { setRes(res, "bad", t("key_pasteKeys")); return; }
+      add.disabled = true;
+      box.dataset.saving = "1";
+      try {
+        const r = await addAndProbe(res, () => msg({ action: "bulkAddApiKey", slug: p.slug, keys, psd }), probe);
+        if (r && r.ok) bulkArea.value = "";
+        else if (r && Number.isSafeInteger(r.failed) && r.errors && r.errors.length === r.failed) {
+          // Retry only failed rows, in their original order; successful rows may be create-only upstream.
+          const failed = new Set(r.errors.map((e) => e.index));
+          bulkArea.value = keys.filter((_, i) => failed.has(i)).join("\n");
+        }
+      } finally { delete box.dataset.saving; add.disabled = false; }
+      return;
+    }
+    const apiKey = key.value.trim();
+    if (!apiKey && !p.keyOptional) { setRes(res, "bad", t("key_pasteKey")); return; }
+    batchResults.delete("key:" + p.slug);
     add.disabled = true;
     const r = await addAndProbe(res, () => msg({ action: "addApiKey", slug: p.slug, name: name.value.trim(), apiKey, psd }), probe);
     add.disabled = false;
@@ -380,10 +538,11 @@ function keyRow(p) {
   return row;
 }
 function renderKeyList() {
-  if (document.activeElement && $("keyList").contains(document.activeElement)) return; // don't wipe a key being typed
+  if ($("keyList").querySelector(".keyform[data-saving]")) return; // roster refresh must retain failed rows and their extra fields
+  if (isEditing($("keyList"))) return; // don't wipe a key being typed
   const q = $("keySearch").value.trim().toLowerCase();
   const box = $("keyList"); box.textContent = "";
-  const match = (p) => !q || p.label.toLowerCase().includes(q) || p.slug.includes(q);
+  const match = (p) => omniMatchesProvider(p, q);
   // Search-first: the catalog is too long to scroll. With no query show only the working set
   // (providers that already have a connection); everything else is one keystroke away.
   // Count comes from the catalog, never a literal — the badge two lines down already said 167 while
@@ -439,10 +598,11 @@ function oauthCancelBtn(o) {
   return cancel;
 }
 // Bulk ZIP import row for providers that support it (claude/codex/antigravity) — a .zip of exported
-// accounts → base64 (File can't cross the SW message intact) → zipImport → probe result.
+// accounts → base64 (File can't cross the SW message intact) → zipImport → per-entry result.
 function zipImportRow(o) {
   const wrap = el("div");
   const zres = el("div", "res");
+  if (batchResults.has("zip:" + o.slug)) showBatchResult(zres, batchResults.get("zip:" + o.slug), true);
   const fileBtn = el("button", "ghost sm grow", t("oauth_zipImport"));
   const file = el("input", "hide"); file.type = "file"; file.accept = ".zip";
   fileBtn.onclick = () => file.click();
@@ -453,7 +613,7 @@ function zipImportRow(o) {
     if (!b64) { setRes(zres, "bad", t("oauth_zipReadFail")); return; }
     setRes(zres, "pend", t("oauth_zipImporting"));
     const res = await msg({ action: "zipImport", provider: o.slug, b64 });
-    if (res && res.ok) { setRes(zres, "ok", t("oauth_zipDone", [String(res.added)])); loadConnections(); }
+    if (res && (res.batch || "added" in res)) await finishBatch(zres, res, true);
     else setRes(zres, "bad", "🔴 " + ((res && res.error) || t("popup_error")));
     file.value = "";
   };
@@ -466,10 +626,14 @@ function oauthCard(o) {
   const card = el("div", "card" + (bad ? " bad" : "")); card.dataset.slug = o.slug;
   const h = el("div", "card-h");
   h.append(el("span", "ico", "🔐"), el("b", null, o.label), el("span", "tag", KIND_TAG[o.kind] || o.slug));
-  card.append(h);
+  card.append(h, providerGuidance(o));
   const cl = connLine(o.slug); if (cl) card.append(cl);
 
-  if (o.broken) { card.append(el("div", "res show bad", t("oauth_broken"))); return card; }
+  if (o.dashboardOnly) {
+    card.append(el("p", "hint-sm", t("oauth_broken")), dashboardButton(o));
+    if (o.zipAuth) card.append(zipImportRow(o));
+    return card;
+  }
 
   if (st && st.status === "pending") {
     if (o.kind === "device") {
@@ -534,10 +698,10 @@ function oauthCard(o) {
 }
 
 function renderOauth() {
-  if (document.activeElement && $("oauthList") && $("oauthList").contains(document.activeElement)) return; // don't wipe a token being typed
+  if (isEditing($("oauthList"))) return; // don't wipe a token being typed
   $("bOauth").textContent = String(OMNI_OAUTH.length);
   const q = ($("oauthSearch").value || "").trim().toLowerCase();
-  const match = (o) => !q || o.label.toLowerCase().includes(q) || o.slug.includes(q);
+  const match = (o) => omniMatchesProvider(o, q);
   const list = OMNI_OAUTH.filter(match);
   const box = $("oauthList"); box.textContent = "";
   if (!list.length) { box.append(el("div", "empty", t("popup_nothingFound"))); return; }
@@ -555,10 +719,11 @@ $("oauthSearch").addEventListener("input", debounce(renderOauth, 140));
 $("globalSearch").addEventListener("input", debounce(() => {
   const v = $("globalSearch").value;
   for (const id of ["webSearch", "keySearch", "oauthSearch"]) { const e = $(id); if (e) e.value = v; }
-  renderWeb(); keyPaneFill(); renderOauth();
+  renderWeb(); keyPaneFill(); renderOauth(); renderCatalog();
 }, 140));
 async function startOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
+  if (OMNI_OAUTH_MAP[slug]?.dashboardOnly) { chrome.tabs.create({ url: omniDashboardUrl(slug) }); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: serverDetail || t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", userCode: "…", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthStart", provider: slug });
   if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
@@ -566,7 +731,8 @@ async function startOauth(slug) {
 }
 // Redirect/PKCE: kick off the browser login; OmniRoute's callback server completes it, we poll.
 async function connectOauth(slug) {
-  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: t("popup_omniDown") }; renderOauth(); return; }
+  if (OMNI_OAUTH_MAP[slug]?.dashboardOnly) { chrome.tabs.create({ url: omniDashboardUrl(slug) }); return; }
+  if (!serverOnline) { oauthStates[slug] = { status: "error", detail: serverDetail || t("popup_omniDown") }; renderOauth(); return; }
   oauthStates[slug] = { status: "pending", kind: "redirect", verifyUrl: "" }; renderOauth();
   const r = await msg({ action: "oauthConnect", provider: slug });
   if (!r || !r.ok) { oauthStates[slug] = { status: "error", detail: (r && r.error) || t("popup_error") }; renderOauth(); return; }
@@ -599,7 +765,7 @@ async function refreshOauth() {
 function setFooter() {
   let g = 0, b = 0; for (const k in conns) { g += conns[k].good || 0; b += conns[k].bad || 0; }
   const health = `🔗 ${connTotal}${g ? ` · 🟢 ${g}` : ""}${b ? ` · 🔴 ${b}` : ""} · 127.0.0.1:20128`;
-  $("ftrHint").textContent = !serverOnline ? t("popup_footerDown")
+  $("ftrHint").textContent = !serverOnline ? (serverState === "unauthenticated" ? t("bg_needLogin") : serverDetail || t("popup_footerDown"))
     : connUnreachable ? t("popup_footerUnreadable")
     : connTotal ? health
     : t("popup_footerLogin");
@@ -611,6 +777,8 @@ async function probeServer() {
   // fetch: Firefox blocks a direct http fetch from the extension's secure moz-extension context to the
   // http loopback server as mixed content (Chrome exempts loopback). The tab path is http→http.
   const r = await msg({ action: "ping" }).catch(() => null);
+  serverState = (r && r.state) || (r && r.ok ? "ready" : "unreachable");
+  serverDetail = (r && r.detail) || "";
   if (r && r.ok) { serverOnline = true; dot.className = "dot ok"; txt.textContent = "127.0.0.1:20128"; }
   // Show the real reason (from runInDash: tab open / injection / timeout) instead of a bare "недоступен".
   else { serverOnline = false; dot.className = "dot bad"; txt.textContent = (r && r.detail) ? "127.0.0.1:20128 — " + r.detail : t("popup_srvDown"); }
@@ -669,7 +837,7 @@ function renderProblems() {
     info.onclick = () => { if (expanded.has("p:" + pr.provider)) expanded.delete("p:" + pr.provider); else expanded.add("p:" + pr.provider); renderProblems(); };
     row.append(info);
     if (wp) { const open = el("button", "ghost sm", t("web_loginAgain")); open.title = t("web_loginAgainTitle"); open.onclick = () => loginAgain(pr.provider, open); row.append(open); }
-    else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { const tb = document.querySelector('.tab[data-pane="oauth"]'); if (tb) tb.click(); startOauth(oa.slug); }; row.append(rc); }
+    else if (oa && oa.deviceFlow && !oa.broken) { const rc = el("button", "ghost sm", t("oauth_reconnect")); rc.onclick = () => { focusProvider(oa, "oauth"); startOauth(oa.slug); }; row.append(rc); }
     if (pr.id) connActions(row, info, pr, renderProblems);
     else {
       // No OmniRoute connection id to delete — this is a stale local probe verdict. Give it a dismiss
@@ -773,6 +941,11 @@ async function runProbeAll() {
   res.className = "res show pend"; res.textContent = t("popup_probingN", ["0", String(slugs.length)]);
   msg({ action: "siteCheck", keys: slugs.filter((s) => OMNI_WEB_MAP[s]) }).then((r) => { if (r && r.sites) Object.assign(sites, r.sites); }); // site up? runs alongside
   const r = await msg({ action: "probeAll", slugs });
+  if (r && r.transportError) {
+    setRes(res, "bad", r.error);
+    prog.classList.add("hide"); btn.disabled = false;
+    return;
+  }
   const results = (r && r.results) || {};
   for (const k in results) probes[k] = { ...results[k], at: Date.now() };
   const vals = Object.values(results);
@@ -795,8 +968,8 @@ function onProbeProgress(m) {
   res.textContent = t("popup_probingWith", [String(m.done), String(m.total), label]) + (eta ? " · " + t("popup_probeEta", [String(eta)]) : "");
 }
 let sentAt = {}; // web key → when its current capture was last pushed (a sent capture isn't "ready to send")
-async function refresh() {
-  const r = await msg({ action: "getAll" });
+async function refresh(discover = false) {
+  const r = await msg({ action: "getAll", ...(discover === true ? { discover: true } : {}) });
   caps = (r && r.caps) || {};
   const loc = await chrome.storage.local.get(OMNI_WEB.map((p) => "sent_" + p.key));
   sentAt = {}; for (const p of OMNI_WEB) if (loc["sent_" + p.key]) sentAt[p.key] = loc["sent_" + p.key];
@@ -822,8 +995,8 @@ const DAY = 24 * 60 * 60 * 1000;
 // "retired" ONLY for providers OmniRoute itself removed (docs/reference/REMOVED_PROVIDERS.md). Being absent
 // from this extension's catalog proves nothing: zai-web merely lost in-app cookie capture and github-models
 // is a normal live connection — calling those "removed" offered to delete working connections.
-const RETIRED = new Set(["qwen-web", "chatgpt-web"]);
-const kindOf = (slug) => RETIRED.has(slug) ? "retired" : OMNI_WEB_MAP[slug] ? "web" : OMNI_OAUTH_MAP[slug] ? "oauth" : OMNI_APIKEY_MAP[slug] ? "key" : "other";
+const RETIRED = new Set(["qwen-web"]);
+const kindOf = (slug) => OMNI_WEB_MAP[slug] ? "web" : OMNI_OAUTH_MAP[slug] ? "oauth" : OMNI_APIKEY_MAP[slug] ? "key" : OMNI_CATALOG_MAP[slug] ? "other" : RETIRED.has(slug) ? "retired" : "other";
 const KIND_LABEL = { web: () => t("kind_web"), key: () => t("kind_key"), oauth: () => t("kind_oauth"), retired: () => t("kind_retired"), other: () => t("kind_other") };
 const fmtMs = (ms) => (ms == null ? "—" : ms < 1000 ? ms + t("unit_ms") : (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + t("unit_s"));
 const isBadConn = (c) => c.hasError || c.testStatus === "banned" || c.testStatus === "error";
@@ -954,7 +1127,7 @@ function provRow(r) {
   row.append(nm, el("span", "pc", `${r.good || 0}/${r.total}`), spark(r.h));
   const [meta, cls] = rowMeta(r);
   row.append(el("span", "pm " + cls, meta));
-  if (r.kind === "web") {
+  if (canCapture(r.slug)) {
     const rf = el("button", "ibtn", "↻"); rf.title = t("row_refresh"); rf.setAttribute("aria-label", t("row_refresh"));
     rf.onclick = () => runRefresh([r.slug], rf);
     row.append(rf);
@@ -1040,7 +1213,7 @@ function renderTable() {
   $("tableSelAll").checked = shown.length > 0 && shown.every((r) => tableSel.has(r.slug));
   $("tableSelAll").onchange = () => { const on = $("tableSelAll").checked; for (const r of shown) on ? tableSel.add(r.slug) : tableSel.delete(r.slug); renderTable(); };
   $("tableSelN").textContent = tableSel.size ? t("table_selN", [String(tableSel.size)]) : t("table_hint2");
-  $("tableRefreshSel").disabled = !tableSel.size;
+  $("tableRefreshSel").disabled = ![...tableSel].some((slug) => canCapture(slug) || !OMNI_WEB_MAP[slug]);
   const badIds = allConns.filter((c) => tableSel.has(c.provider) && (isBadConn(c) || kindOf(c.provider) === "retired")).map((c) => c.id);
   const del = $("tableDelSel"); del.disabled = !badIds.length;
   del.textContent = t("table_delSel"); del.classList.remove("armed"); del.dataset.armed = "";
@@ -1048,14 +1221,14 @@ function renderTable() {
 }
 $("tableRefreshSel").addEventListener("click", async () => {
   const sel = [...tableSel];
-  const web = sel.filter((s) => kindOf(s) === "web"), other = sel.filter((s) => kindOf(s) !== "web");
+  const web = sel.filter(canCapture), other = sel.filter((s) => !OMNI_WEB_MAP[s]);
   if (web.length) await runRefresh(web, $("tableRefreshSel"));
   if (other.length) { const r = await msg({ action: "probeAll", slugs: other }); for (const k in ((r && r.results) || {})) probes[k] = { ...r.results[k], at: Date.now() }; }
   await loadStats(false); renderAll();
 });
 
 // ── Wizard ──────────────────────────────────────────────────────────────────
-const missingWeb = () => OMNI_WEB.filter((p) => !(conns[p.slug] && conns[p.slug].total) && !wizIgnore.includes(p.slug)).map((p) => p.slug);
+const missingWeb = () => OMNI_CAPTURE_WEB.filter((p) => !(conns[p.slug] && conns[p.slug].total) && !wizIgnore.includes(p.slug)).map((p) => p.slug);
 function buildWizQueue() {
   const q = [];
   if (wizMode !== "missing") {
@@ -1113,7 +1286,12 @@ function renderWizard() {
     setRes(res, "pend", t("wiz_waitLogin"));
     wizSkip.add(it.kind + ":" + it.slug);
   };
-  if (it.kind === "webFix") {
+  if (!canCapture(it.slug) && !canKey(it.slug) && !canOauth(it.slug) && it.kind !== "retired") {
+    const p = OMNI_CATALOG_MAP[it.slug];
+    txt.textContent = p?.authHint || p?.notice || t("catalog_noGuidance");
+    go.textContent = t("oauth_inDashboard");
+    go.onclick = () => chrome.tabs.create({ url: omniDashboardUrl(it.slug) });
+  } else if (it.kind === "webFix") {
     txt.textContent = t("wiz_txtWebFix", [web.host]);
     go.textContent = "🔧 " + t("wiz_goFix");
     go.onclick = async () => {
@@ -1128,14 +1306,14 @@ function renderWizard() {
     txt.textContent = t("wiz_txtWebAdd", [web.host]);
     go.textContent = "🔑 " + t("wiz_goLogin");
     go.onclick = sendToLogin;
-  } else if (oa) {
+  } else if (oa && canOauth(it.slug)) {
     txt.textContent = t("wiz_txtOauth");
     go.textContent = "🔐 " + t("oauth_reconnect");
-    go.onclick = () => { goPane("oauth"); if (oa.kind === "redirect") connectOauth(oa.slug); else if (oa.deviceFlow && !oa.broken) startOauth(oa.slug); wizSkip.add(it.kind + ":" + it.slug); };
-  } else if (key) {
+    go.onclick = () => { focusProvider(oa, "oauth"); if (oa.kind === "redirect") connectOauth(oa.slug); else if (oa.deviceFlow && !oa.broken) startOauth(oa.slug); wizSkip.add(it.kind + ":" + it.slug); };
+  } else if (key && canKey(it.slug)) {
     txt.textContent = t("wiz_txtKey");
     go.textContent = "🔑 " + t("wiz_goKey");
-    go.onclick = () => { if (key.get) chrome.tabs.create({ url: key.get }); keyExpanded = key.slug; goPane("key"); renderKeyList(); wizSkip.add(it.kind + ":" + it.slug); };
+    go.onclick = () => { if (key.get) chrome.tabs.create({ url: key.get }); focusProvider(key, "key"); wizSkip.add(it.kind + ":" + it.slug); };
   } else { // retired
     txt.textContent = t("wiz_txtRetired");
     go.textContent = "🗑 " + t("wiz_goDelete", [String(ids.length)]);
@@ -1165,17 +1343,26 @@ function renderRail() {
 // ── refresh-all (re-capture web sessions through background tabs) ──────────
 async function runRefresh(keys, btn) {
   const res = $("probeAllRes"), prog = $("probeProg"), bar = $("probeProgBar");
+  if (keys) {
+    keys = keys.filter(canCapture);
+    if (!keys.length) { setRes(res, "mut", t("bg_dashboardSetup")); return; }
+  }
   if (!serverOnline) { res.className = "res show bad"; res.textContent = "⚠ " + t("popup_omniDown"); return; }
   if (btn) btn.disabled = true;
   prog.classList.remove("hide"); bar.style.width = "0%"; probeStart = Date.now();
   res.className = "res show pend"; res.textContent = t("refresh_start");
   const r = await msg(keys ? { action: "refreshSessions", keys } : { action: "refreshSessions" });
   if (btn) btn.disabled = false;
+  if (r && r.transportError) {
+    setRes(res, "bad", r.error); prog.classList.add("hide");
+    return;
+  }
   if (r && r.busy) { res.className = "res show mut"; res.textContent = t("refresh_busy"); prog.classList.add("hide"); return; }
   const vals = Object.values((r && r.results) || {});
   const ok = vals.filter((v) => v.state === "ok").length, need = vals.length - ok;
+  const failed = vals.some((v) => ["needLogin", "noSession", "error"].includes(v.state));
   bar.style.width = "100%"; setTimeout(() => prog.classList.add("hide"), 900);
-  res.className = "res show " + (need ? "bad" : "ok");
+  res.className = "res show " + (failed ? "bad" : need ? "mut" : "ok");
   res.textContent = vals.length ? t("refresh_done", [String(ok), String(need)]) : t("refresh_none");
   const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
   await loadStats(false); await loadConnections();
@@ -1213,23 +1400,28 @@ async function loadStats(heavy = true) {
   if (sc && sc.sites) Object.assign(sites, sc.sites);
   if (v && v.ok !== false) omniVer = v;
 }
-function renderAll() { renderProblems(); renderDash(); if (curPane === "table") renderTable(); if (curPane === "wizard") renderWizard(); renderManage(); renderWeb(); keyPaneFill(); }
+function renderAll() { renderProblems(); renderDash(); if (curPane === "table") renderTable(); if (curPane === "wizard") renderWizard(); if (curPane === "catalog") renderCatalog(); renderManage(); renderWeb(); keyPaneFill(); }
 
 // ── provider details (Pulse row / Table row expand): models, connections, the right next action ──
 let modelList = null; // [{id}] from /v1/models — loaded once per popup open, on first need
+let modelsLoading = null;
 const expanded = new Set();
 async function ensureModels() {
   if (modelList) return modelList;
-  const r = await msg({ action: "models" });
-  modelList = (r && r.ok && r.models) || [];
-  return modelList;
+  if (!modelsLoading) modelsLoading = msg({ action: "models" }).then((r) => {
+    modelList = (r && r.ok && r.models) || [];
+    return modelList;
+  }).finally(() => { modelsLoading = null; });
+  return modelsLoading;
 }
 const modelsOf = (slug) => (modelList || []).filter((m) => m.id.startsWith(slug + "/")).map((m) => m.id);
+const chatModelsOf = (slug) => (modelList || []).filter((m) => m.id.startsWith(slug + "/") && omniCanChatModel(m)).map((m) => m.id);
 const connName = (c) => c.name || providerLabel(c.provider);
 
 // Send the user to log in again; the SW finishes the add itself once the session shows up.
 async function loginAgain(slug, btn) {
   if (!OMNI_WEB_MAP[slug]) return;
+  if (OMNI_WEB_MAP[slug].cred.t === "dashboard") { chrome.tabs.create({ url: omniDashboardUrl(slug) }); return; }
   if (btn) { btn.disabled = true; btn.textContent = t("det_loginWorking"); }
   const r = await msg({ action: "loginAgain", key: slug });
   if (btn) {
@@ -1244,24 +1436,27 @@ function nextActionBtns(r, box) {
   const probe = el("button", "ghost sm", t("row_probe"));
   probe.onclick = async () => { probe.disabled = true; probe.textContent = t("popup_probingLive"); const p = await msg({ action: "probe", slug: r.slug }); probes[r.slug] = { ...p, at: Date.now() }; await loadStats(false); renderAll(); };
   row.append(probe);
-  if (r.kind === "web") {
+  if (canCapture(r.slug)) {
     const rf = el("button", "ghost sm", t("det_refresh")); rf.title = t("row_refresh");
     rf.onclick = () => runRefresh([r.slug], rf);
     const li = el("button", "ghost sm", t("det_login")); li.title = t("det_loginTitle");
     li.onclick = () => loginAgain(r.slug, li);
     row.append(rf, li);
-  } else if (r.kind === "key") {
+  }
+  if (canKey(r.slug)) {
     const k = OMNI_APIKEY_MAP[r.slug];
     const nk = el("button", "ghost sm", t("det_newKey"));
-    nk.onclick = () => { if (k && k.get) chrome.tabs.create({ url: k.get }); keyExpanded = r.slug; goPane("key"); renderKeyList(); };
+    nk.onclick = () => { if (k.get) chrome.tabs.create({ url: k.get }); focusProvider(k, "key"); };
     row.append(nk);
-  } else if (r.kind === "oauth") {
+  }
+  if (canOauth(r.slug)) {
     const o = OMNI_OAUTH_MAP[r.slug];
     const rc = el("button", "ghost sm", t("oauth_reconnect"));
-    rc.onclick = () => { goPane("oauth"); if (o.kind === "redirect") connectOauth(o.slug); else if (o.deviceFlow && !o.broken) startOauth(o.slug); };
+    rc.onclick = () => { focusProvider(o, "oauth"); if (o.kind === "redirect") connectOauth(o.slug); else if (o.deviceFlow && !o.broken) startOauth(o.slug); };
     row.append(rc);
   }
-  if (r.kind !== "retired") {
+  if (r.kind !== "retired") row.append(dashboardButton(OMNI_CATALOG_MAP[r.slug]));
+  if (r.kind !== "retired" && OMNI_CATALOG_MAP[r.slug]?.probeKind !== "dashboard" && (!modelList || chatModelsOf(r.slug).length)) {
     const ch = el("button", "ghost sm", t("det_chat"));
     ch.onclick = () => openChat(r.slug);
     row.append(ch);
@@ -1287,6 +1482,7 @@ function provDetail(r) {
     facts.append(up);
   }
   box.append(facts);
+  if (OMNI_CATALOG_MAP[r.slug]) box.append(providerGuidance(OMNI_CATALOG_MAP[r.slug]));
   nextActionBtns(r, box);
   // Models this provider exposes through OmniRoute (what Claude Code / OpenCode can actually call).
   const mb = el("div", "det-models"); box.append(mb);
@@ -1366,25 +1562,37 @@ function renderRefreshReport() {
 
 // ── test chat: talk to any connected provider/model right here ─────────────
 const chatLog = [];
+let chatFillVersion = 0;
+let chatTarget = null; // Intent survives refills, even when an unavailable target leaves the picker blank.
 async function openChat(slug) {
   goPane("chat");
   await fillChatProviders(slug);
 }
 async function fillChatProviders(pick) {
+  const version = ++chatFillVersion;
+  // A targeted handoff must not leave the previous provider sendable during model loading.
+  if (pick != null) { chatTarget = pick; $("chatProv").textContent = ""; $("chatModel").textContent = ""; }
   await ensureModels();
-  const sel = $("chatProv"), cur = pick || sel.value;
+  // Navigation, targeted handoffs and picker changes may overlap. Only the newest selection may paint.
+  if (version !== chatFillVersion) return;
+  const sel = $("chatProv"), cur = chatTarget ?? sel.value;
   sel.textContent = "";
-  const slugs = [...new Set((modelList || []).map((m) => m.id.split("/")[0]))]
+  const slugs = [...new Set((modelList || []).filter(omniCanChatModel).map((m) => m.id.split("/")[0]))]
+    .filter((s) => OMNI_CATALOG_MAP[s]?.probeKind !== "dashboard")
     .filter((s) => (conns[s] && conns[s].total) || s.startsWith("auto"))
     .sort((a, b) => providerLabel(a).localeCompare(providerLabel(b)));
-  for (const s of slugs) { const o = el("option", null, `${providerLabel(s)} (${modelsOf(s).length})`); o.value = s; sel.append(o); }
-  if (!slugs.length) { const o = el("option", null, t("chat_noModels")); o.value = ""; sel.append(o); }
+  for (const s of slugs) { const o = el("option", null, `${providerLabel(s)} (${chatModelsOf(s).length})`); o.value = s; sel.append(o); }
+  if (!slugs.length || (chatTarget !== null && !slugs.includes(chatTarget))) {
+    const o = el("option", null, (chatTarget ? providerLabel(chatTarget) + ": " : "") + t("chat_noModels"));
+    o.value = ""; sel.prepend(o); sel.value = "";
+  }
   if (cur && slugs.includes(cur)) sel.value = cur;
   fillChatModels();
 }
 function fillChatModels() {
-  const sel = $("chatModel"); sel.textContent = "";
-  for (const id of modelsOf($("chatProv").value)) { const o = el("option", null, id.slice(id.indexOf("/") + 1)); o.value = id; sel.append(o); }
+  const sel = $("chatModel"), cur = sel.value, ids = chatModelsOf($("chatProv").value); sel.textContent = "";
+  for (const id of ids) { const o = el("option", null, id.slice(id.indexOf("/") + 1)); o.value = id; sel.append(o); }
+  if (ids.includes(cur)) sel.value = cur;
 }
 function renderChat() {
   const box = $("chatLogBox"); box.textContent = "";
@@ -1415,7 +1623,12 @@ async function sendChat() {
   }
   renderChat();
 }
-$("chatProv").addEventListener("change", fillChatModels);
+$("chatProv").addEventListener("change", () => {
+  chatTarget = $("chatProv").value; ++chatFillVersion;
+  fillChatModels();
+  if (!modelList) fillChatProviders(); // Finish a pending shared model read for the user's new choice.
+});
+$("chatModel").addEventListener("change", () => { ++chatFillVersion; });
 $("chatSend").addEventListener("click", sendChat);
 $("chatIn").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); } });
 $("chatClear").addEventListener("click", () => { chatLog.length = 0; renderChat(); });
@@ -1536,7 +1749,7 @@ function initSettings() {
     const f = $("importFile").files && $("importFile").files[0]; if (!f) return;
     let slugs = [];
     try { const d = JSON.parse(await f.text()); slugs = [...new Set((d.connections || []).map((c) => c && c.provider).filter((s) => typeof s === "string"))]; } catch (e) { slugs = []; }
-    const missing = slugs.filter((s) => !(conns[s] && conns[s].total) && (OMNI_WEB_MAP[s] || OMNI_OAUTH_MAP[s] || OMNI_APIKEY_MAP[s]));
+    const missing = slugs.filter((s) => !(conns[s] && conns[s].total) && OMNI_CATALOG_MAP[s]);
     await chrome.storage.local.set({ wiz_import: missing });
     wizImport = missing;
     $("setSummary").textContent = slugs.length ? t("set_importDone", [String(missing.length), String(slugs.length)]) : t("set_importBad");
@@ -1580,7 +1793,7 @@ else if (windowed) {
   const pr = await msg({ action: "getProbes" }); probes = (pr && pr.probes) || {};
   await detectActiveTab();
   initKeyPane();
-  await refresh();
+  await refresh(true);
   await refreshHostBanner(); // Firefox: show the "grant access" banner if 127.0.0.1 isn't permitted yet
   await probeServer();
   if (serverOnline) { await fetchConnections(); $("probeAllBtn").disabled = !connTotal; }
